@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0b0d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Musica DJ">
+  <meta name="description" content="Controlador DJ de dos decks para el celular, inspirado en las controladoras Pioneer DJ.">
+  <title>Musica DJ</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">MUSICA<span>DJ</span></div>
+      <button class="btn small" id="btn-library">BIBLIOTECA</button>
+      <button class="btn small" id="btn-quantize">QUANTIZE</button>
+      <button class="btn small" id="btn-curve">X-FADER: SUAVE</button>
+      <button class="btn small rec" id="btn-rec">● REC</button>
+      <div class="master">
+        <span>MASTER</span>
+        <div id="master-fader"></div>
+        <div class="meter h" id="master-meter"><i></i></div>
+      </div>
+      <button class="btn small" id="btn-fullscreen" aria-label="Pantalla completa">⛶</button>
+    </header>
+
+    <section class="waves">
+      <div class="slot"><canvas class="wave" id="wave-a"></canvas></div>
+      <div class="slot"><canvas class="wave" id="wave-b"></canvas></div>
+    </section>
+
+    <main class="console">
+      <section class="deck" id="deck-a"></section>
+      <section class="mixer" id="mixer"></section>
+      <section class="deck" id="deck-b"></section>
+    </main>
+
+    <div class="rotate-hint">Gira el teléfono en horizontal para usar los dos decks a la vez.</div>
+  </div>
+
+  <div class="overlay" id="library" hidden>
+    <div class="lib-panel">
+      <div class="lib-head">
+        <b>BIBLIOTECA</b>
+        <span id="lib-target"></span>
+        <label class="btn small add">+ AÑADIR MÚSICA
+          <input type="file" id="file-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
+        </label>
+        <button class="btn small" id="lib-close">CERRAR</button>
+      </div>
+      <p class="lib-empty">Añade canciones desde tu teléfono (MP3, M4A, WAV, FLAC, OGG…). Se analizan al cargarlas en un deck: BPM, beat grid y forma de onda.</p>
+      <ul id="lib-list"></ul>
+    </div>
+  </div>
+
+  <div class="fatal" id="fatal" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

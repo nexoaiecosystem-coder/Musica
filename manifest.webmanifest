@@ -1,0 +1,17 @@
+{
+  "name": "Musica DJ",
+  "short_name": "Musica DJ",
+  "description": "Controlador DJ de dos decks para el celular, inspirado en Pioneer DJ.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0b0d",
+  "theme_color": "#0a0b0d",
+  "lang": "es",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

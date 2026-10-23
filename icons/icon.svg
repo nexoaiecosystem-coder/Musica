@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0b0d"/>
+  <circle cx="256" cy="256" r="196" fill="#1b1e22" stroke="#2c8cff" stroke-width="14"/>
+  <circle cx="256" cy="256" r="150" fill="#2a2e34"/>
+  <circle cx="256" cy="256" r="92" fill="#08090a" stroke="#ff8a1f" stroke-width="10"/>
+  <rect x="246" y="76" width="20" height="62" rx="6" fill="#2c8cff"/>
+  <text x="256" y="282" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="78" fill="#ffffff">DJ</text>
+</svg>
