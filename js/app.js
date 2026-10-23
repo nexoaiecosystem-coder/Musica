@@ -1,5 +1,6 @@
 import { Knob, Fader, press } from './ui.js';
 import { analyzeBuffer, renderOverview, FPS, LAYERS } from './analysis.js';
+import { AutoMix } from './automix.js';
 
 const SEC_PER_REV = 1.8; // 33⅓ rpm: una vuelta de jog = 1,8 s de audio
 const RANGES = [0.06, 0.10, 0.16, 0.50];
@@ -10,7 +11,7 @@ const ROLL_PADS = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
 const JUMP_PADS = [-1, 1, -4, 4, -8, 8, -16, 16];
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 
-let ctx, mixer;
+let ctx, mixer, automix, xfaderCtl;
 const decks = [];
 const settings = { quantize: true, zoom: 0 };
 const library = [];
@@ -789,7 +790,7 @@ class Deck {
 
   /* ── cuadro de animación ── */
 
-  frame(dt) {
+  frame(dt, draw) {
     const u = this.ui;
     const c = this.cache;
     const t = this.jogTouch;
@@ -800,6 +801,7 @@ class Deck {
       this.post({ type: 'bend', value: clamp(t.vel * 0.12, -0.5, 0.5) });
     }
     if (this.sync) this.matchTempo();
+    if (!draw) return;
 
     const p = this.position;
     const sec = p / this.sr;
@@ -970,11 +972,16 @@ function addFiles(files) {
   if (added.length && libTarget) {
     const target = libTarget;
     closeLibrary();
+    automix.stop();
     target.load(added[0]);
   }
 }
 
 function renderLibrary() {
+  if (automix) {
+    renderPlayerList();
+    automix.preloadNext();
+  }
   const list = $('#lib-list');
   $('#library').classList.toggle('empty', library.length === 0);
   list.innerHTML = library.map((it, i) => `
@@ -1014,6 +1021,7 @@ function bindLibrary() {
     const item = library[+li.dataset.i];
     const deck = btn ? decks[+btn.dataset.load] : libTarget;
     if (!deck) return;
+    automix.stop();
     closeLibrary();
     deck.load(item);
   });
@@ -1022,6 +1030,146 @@ function bindLibrary() {
     e.preventDefault();
     if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
   });
+}
+
+/* ─────────────────────────── Reproductor simple ─────────────────────────── */
+
+const playerCache = {};
+
+function loadPrefs() {
+  try {
+    const fade = localStorage.getItem('musica.fade');
+    const bm = localStorage.getItem('musica.beatmatch');
+    if (fade != null) automix.fade = +fade;
+    if (bm != null) automix.beatmatch = bm === '1';
+  } catch { /* sin almacenamiento */ }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem('musica.fade', String(automix.fade));
+    localStorage.setItem('musica.beatmatch', automix.beatmatch ? '1' : '0');
+  } catch { /* sin almacenamiento */ }
+}
+
+function renderPrefs() {
+  $('#p-fade').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.s === automix.fade));
+  $('#p-beatmatch').classList.toggle('on', automix.beatmatch);
+  $('#p-beatmatch').setAttribute('aria-checked', String(automix.beatmatch));
+}
+
+function showPlayer(on) {
+  $('#player').hidden = !on;
+}
+
+function bindPlayer() {
+  loadPrefs();
+  renderPrefs();
+  $('#player-input').addEventListener('change', (e) => {
+    addFiles(e.target.files);
+    e.target.value = '';
+  });
+  $('#p-play').addEventListener('click', () => automix.toggle());
+  $('#p-next').addEventListener('click', () => automix.next());
+  $('#p-prev').addEventListener('click', () => automix.prev());
+  $('#p-fade').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    automix.fade = +b.dataset.s;
+    savePrefs();
+    renderPrefs();
+  });
+  $('#p-beatmatch').addEventListener('click', () => {
+    automix.beatmatch = !automix.beatmatch;
+    savePrefs();
+    renderPrefs();
+  });
+  $('#p-list').addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    const i = +li.dataset.i;
+    if (e.target.closest('.p-del')) {
+      if (automix.remove(i)) renderLibrary();
+      return;
+    }
+    automix.playIndex(i);
+  });
+  $('#p-bar').addEventListener('pointerdown', (e) => {
+    const a = automix.active;
+    if (!a || !a.loaded || automix.trans) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    a.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * a.len);
+  });
+  $('#btn-djmode').addEventListener('click', () => showPlayer(false));
+  $('#btn-player').addEventListener('click', () => showPlayer(true));
+  renderPlayerList();
+}
+
+function renderPlayerList() {
+  const list = $('#p-list');
+  const t = automix.trans;
+  const nextIdx = t ? t.idx : automix.nextIndex();
+  $('#player').classList.toggle('empty', library.length === 0);
+  list.innerHTML = library.map((it, i) => {
+    const cls = i === automix.index ? 'current' : i === nextIdx && automix.running ? 'next' : '';
+    return `
+    <li data-i="${i}" class="${cls}">
+      <span class="p-num">${i === automix.index ? '♪' : i + 1}</span>
+      <span class="p-name">${escapeHtml(it.name)}</span>
+      <span class="p-bpm">${it.bpm ? Math.round(it.bpm) + ' BPM' : ''}</span>
+      <button class="p-del" aria-label="Quitar">✕</button>
+    </li>`;
+  }).join('');
+}
+
+function updatePlayer() {
+  const c = playerCache;
+  const a = automix.active;
+  const t = automix.trans;
+  const item = automix.running ? library[automix.index] : null;
+  const fading = t && t.phase === 'fade';
+  const incoming = t ? library[t.idx] : null;
+
+  let status = 'LISTO';
+  if (!library.length) status = 'SIN CANCIONES';
+  else if (fading) status = `MEZCLANDO · ${Math.round(automix.progress * 100)}%`;
+  else if (t) status = 'PREPARANDO LA MEZCLA…';
+  else if (automix.held) status = 'EN PAUSA';
+  else if (automix.isPlaying) status = 'AHORA SUENA';
+  else if (automix.finished) status = 'FIN DE LA LISTA';
+  setText(c, 'status', $('#p-status'), status);
+
+  const title = fading && automix.progress > 0.5 ? incoming : item;
+  setText(c, 'title', $('#p-title'), title ? title.name : library.length ? 'Pulsa ▶ para empezar' : 'Añade canciones para empezar');
+
+  const deck = fading && automix.progress > 0.5 ? t.to : a;
+  let meta = '';
+  if (deck && deck.loaded && deck.bpm) {
+    const pct = deck.tempoPct * 100;
+    meta = `${(deck.bpm * deck.tempo).toFixed(1)} BPM` + (Math.abs(pct) >= 0.05 ? ` (${pct > 0 ? '+' : ''}${pct.toFixed(1)} %)` : '');
+  }
+  setText(c, 'meta', $('#p-meta'), meta);
+
+  const nextItem = t ? incoming : automix.running && automix.nextIndex() >= 0 ? library[automix.nextIndex()] : null;
+  setText(c, 'next', $('#p-nexttitle'), fading && automix.progress > 0.5 ? (item ? `${item.name} (saliendo)` : '—') : nextItem ? nextItem.name : '—');
+
+  setText(c, 'play', $('#p-play'), automix.isPlaying ? '❚❚' : '▶');
+
+  const bar = $('#p-bar');
+  if (deck && deck.loaded) {
+    const sec = deck.position / deck.sr;
+    const dur = deck.len / deck.sr;
+    bar.style.setProperty('--p', (sec / dur).toFixed(4));
+    const mixStart = Math.max(0, 1 - (automix.fade * deck.tempo) / dur);
+    bar.style.setProperty('--m', automix.nextIndex() >= 0 || t ? mixStart.toFixed(4) : '1');
+    setText(c, 'el', $('#p-elapsed'), fmtTime(sec, '').slice(0, -2));
+    setText(c, 'rem', $('#p-remain'), fmtTime(dur - sec, '-').slice(0, -2));
+  } else {
+    bar.style.setProperty('--p', '0');
+    bar.style.setProperty('--m', '1');
+    setText(c, 'el', $('#p-elapsed'), '0:00');
+    setText(c, 'rem', $('#p-remain'), '-0:00');
+  }
 }
 
 /* ─────────────────────────── Barra superior ─────────────────────────── */
@@ -1074,7 +1222,6 @@ function bindTopbar() {
   const curve = $('#btn-curve');
   press(curve, () => {
     mixer.curve = mixer.curve === 'smooth' ? 'sharp' : 'smooth';
-    curve.textContent = mixer.curve === 'smooth' ? 'X-FADER: SUAVE' : 'X-FADER: CORTE';
     mixer.setCrossfader(mixer.x);
   });
   const rec = $('#btn-rec');
@@ -1113,16 +1260,18 @@ function buildMixer() {
     const id = 'AB'[i];
     const s = root.querySelector(`.strip[data-ch="${id}"]`);
     const k = (name) => s.querySelector(`[data-k="${name}"]`);
-    new Knob(k('trim'), { label: 'TRIM', onChange: (v) => ch.setTrim(v) });
-    new Knob(k('hi'), { label: 'HI', onChange: (v) => ch.setEq('hi', v) });
-    new Knob(k('mid'), { label: 'MID', onChange: (v) => ch.setEq('mid', v) });
-    new Knob(k('low'), { label: 'LOW', onChange: (v) => ch.setEq('low', v) });
-    new Knob(k('cfx'), { label: 'FILTER', onChange: (v) => ch.setFilter(v) });
+    ch.knobs = {
+      trim: new Knob(k('trim'), { label: 'TRIM', onChange: (v) => ch.setTrim(v) }),
+      hi: new Knob(k('hi'), { label: 'HI', onChange: (v) => ch.setEq('hi', v) }),
+      mid: new Knob(k('mid'), { label: 'MID', onChange: (v) => ch.setEq('mid', v) }),
+      low: new Knob(k('low'), { label: 'LOW', onChange: (v) => ch.setEq('low', v) }),
+      cfx: new Knob(k('cfx'), { label: 'FILTER', onChange: (v) => ch.setFilter(v) }),
+    };
     ch.setFader(0.85);
     new Fader(s.querySelector('[data-fader]'), { vertical: true, value: 0.85, onChange: (v) => ch.setFader(v) });
     ch.meterEl = s.querySelector('[data-meter]');
   });
-  new Fader($('#xfader'), { vertical: false, value: 0.5, def: 0.5, detent: 0.5, resettable: true, onChange: (v) => mixer.setCrossfader(v) });
+  xfaderCtl = new Fader($('#xfader'), { vertical: false, value: 0.5, def: 0.5, detent: 0.5, resettable: true, onChange: (v) => mixer.setCrossfader(v) });
 }
 
 /* ─────────────────────────────── Arranque ─────────────────────────────── */
@@ -1133,7 +1282,17 @@ let masterLevel = 0;
 function loop(now) {
   const dt = lastFrame ? (now - lastFrame) / 1000 : 0;
   lastFrame = now;
-  for (const d of decks) d.frame(dt);
+  automix.tick();
+  const djVisible = $('#player').hidden;
+  for (const d of decks) d.frame(dt, djVisible);
+  if (!djVisible) {
+    updatePlayer();
+    requestAnimationFrame(loop);
+    return;
+  }
+  const curveText = mixer.curve === 'smooth' ? 'X-FADER: SUAVE' : 'X-FADER: CORTE';
+  const curveBtn = $('#btn-curve');
+  if (curveBtn.textContent !== curveText) curveBtn.textContent = curveText;
   for (const ch of mixer.channels) ch.meterEl.style.setProperty('--l', ch.meter().toFixed(3));
   mixer.analyser.getFloatTimeDomainData(masterBuf);
   let pk = 0;
@@ -1175,8 +1334,10 @@ async function init() {
   a.other = b;
   b.other = a;
   decks.push(a, b);
+  automix = new AutoMix({ decks, mixer, xfader: xfaderCtl, library, onChange: renderPlayerList });
   bindTopbar();
   bindLibrary();
+  bindPlayer();
   renderLibrary();
 
   const unlock = () => { if (ctx.state !== 'running') ctx.resume(); };

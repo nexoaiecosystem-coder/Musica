@@ -4,7 +4,20 @@ Reproductor de música para el celular que funciona como una **controladora Pion
 
 Es una aplicación web (PWA): no necesita instalar nada de una tienda. Se abre en el navegador del teléfono y se puede **añadir a la pantalla de inicio** para usarla a pantalla completa y sin conexión.
 
-## Funciones
+## Reproductor con mezcla automática (pantalla principal)
+
+Al abrir la app ves un reproductor normal: añades canciones, pulsas ▶ y suenan una tras otra con una **transición suave (crossfade)** entre ellas, pensada para música electrónica:
+
+1. Unos segundos antes de que termine una canción, la siguiente ya está cargada y analizada.
+2. Con **Igualar BPM y compás** activado, la siguiente se ajusta al tempo de la que suena (si la diferencia es de hasta ±8 %) y **entra justo al inicio de un compás**, con los beats alineados.
+3. Durante la mezcla el volumen pasa de una a otra con curva de potencia constante y **se intercambian los graves** a mitad de la transición, para que no choquen los dos bombos.
+4. Al terminar, la nueva canción vuelve poco a poco (20 s) a su tempo original.
+
+Puedes elegir la duración de la transición: **Corte, 6, 12, 20 o 30 s**. ⏭ empieza la mezcla hacia la siguiente en el próximo compás, y tocar una canción de la lista mezcla hacia ella. Si las canciones tienen BPM muy distintos, se hace un crossfade normal sin cambiar el tempo.
+
+Con **🎛 MODO DJ** pasas a la consola completa (también ves cómo la mezcla automática mueve el crossfader y los EQ). Si cargas una canción a mano en un deck, la mezcla automática se detiene.
+
+## Modo DJ: funciones
 
 **Por cada deck (A y B)**
 - **Jog wheel** táctil
@@ -67,7 +80,8 @@ Pulsa **BIBLIOTECA → + AÑADIR MÚSICA** (o toca el título de un deck) y elig
 ```
 index.html              interfaz
 css/style.css           estilos (look Pioneer, horizontal y vertical)
-js/app.js               decks, mezclador, biblioteca, grabación
+js/app.js               decks, mezclador, biblioteca, reproductor, grabación
+js/automix.js           mezcla automática entre canciones (crossfade + beatmatch)
 js/deck-processor.js    motor de audio (AudioWorklet): tempo, scratch, loops
 js/analysis.js          BPM, beat grid y forma de onda de 3 bandas
 js/ui.js                perillas, faders y botones táctiles

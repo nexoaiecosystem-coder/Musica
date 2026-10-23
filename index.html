@@ -19,6 +19,7 @@
   <div id="app">
     <header class="topbar">
       <div class="brand">MUSICA<span>DJ</span></div>
+      <button class="btn small" id="btn-player">◀ REPRODUCTOR</button>
       <button class="btn small" id="btn-library">BIBLIOTECA</button>
       <button class="btn small" id="btn-quantize">QUANTIZE</button>
       <button class="btn small" id="btn-curve">X-FADER: SUAVE</button>
@@ -43,6 +44,55 @@
     </main>
 
     <div class="rotate-hint">Gira el teléfono en horizontal para usar los dos decks a la vez.</div>
+  </div>
+
+  <div class="player" id="player">
+    <header class="p-head">
+      <div class="brand">MUSICA<span>DJ</span></div>
+      <label class="btn small add">+ AÑADIR MÚSICA
+        <input type="file" id="player-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
+      </label>
+      <button class="btn small" id="btn-djmode">🎛 MODO DJ</button>
+    </header>
+
+    <div class="p-main">
+      <section class="p-now">
+        <div class="p-status" id="p-status">LISTO</div>
+        <div class="p-title" id="p-title">Añade canciones para empezar</div>
+        <div class="p-meta" id="p-meta"></div>
+        <div class="p-bar" id="p-bar"><i></i></div>
+        <div class="p-times"><span id="p-elapsed">0:00</span><span id="p-remain">-0:00</span></div>
+        <div class="p-controls">
+          <button class="p-btn" id="p-prev" aria-label="Anterior">⏮</button>
+          <button class="p-btn big" id="p-play" aria-label="Reproducir o pausar">▶</button>
+          <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla">⏭</button>
+        </div>
+        <div class="p-upnext">Siguiente: <span id="p-nexttitle">—</span></div>
+
+        <div class="p-settings">
+          <div class="p-row">
+            <span>Transición entre canciones</span>
+            <div class="seg" id="p-fade">
+              <button data-s="0">Corte</button>
+              <button data-s="6">6 s</button>
+              <button data-s="12">12 s</button>
+              <button data-s="20">20 s</button>
+              <button data-s="30">30 s</button>
+            </div>
+          </div>
+          <div class="p-row">
+            <span>Igualar BPM y compás<small>La siguiente entra al mismo ritmo y se cambian los graves a mitad de la mezcla.</small></span>
+            <button class="switch" id="p-beatmatch" role="switch" aria-checked="true" aria-label="Igualar BPM"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="p-queue">
+        <div class="p-qhead">LISTA DE REPRODUCCIÓN</div>
+        <p class="p-empty">Pulsa <b>+ AÑADIR MÚSICA</b> y elige varias canciones. Sonarán una tras otra con una mezcla suave entre ellas.</p>
+        <ul class="p-list" id="p-list"></ul>
+      </section>
+    </div>
   </div>
 
   <div class="overlay" id="library" hidden>
