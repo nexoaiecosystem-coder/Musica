@@ -82,7 +82,32 @@ Con **🎛 MODO DJ** pasas a la consola completa (también ves cómo la mezcla a
 
 Las perillas se giran arrastrando hacia arriba/abajo. **Doble toque** en una perilla la vuelve al centro. Todo es multitáctil: puedes mantener SHIFT con un dedo y tocar un pad con otro.
 
-## Cómo usarla en el celular
+## Instalar en Android (app nativa)
+
+1. En el teléfono, abre la página de **Releases** del repositorio en GitHub y entra en **Musica DJ para Android** (etiqueta `android-latest`).
+2. Descarga **`MusicaDJ.apk`** y ábrelo.
+3. Si Android lo pide, permite **"Instalar apps de esta fuente"** para tu navegador o gestor de archivos.
+4. Abre **Musica DJ** desde el cajón de aplicaciones. La primera vez que suene música pedirá permiso para mostrar notificaciones: acéptalo para tener los controles.
+
+Como app nativa:
+- **La música sigue sonando con la pantalla bloqueada** y en segundo plano (servicio de reproducción).
+- Notificación con **anterior / pausa / siguiente**, también en la pantalla de bloqueo y con los botones de auriculares Bluetooth.
+- Para cerrarla del todo, deslízala desde "recientes".
+
+**Actualizaciones:** cada cambio en el código compila un APK nuevo automáticamente (GitHub Actions → *APK Android*). Descárgalo igual que la primera vez: se instala encima y conserva tu biblioteca, carpetas y cola.
+
+> El APK se firma con una clave incluida en el repositorio (`android/app/musica-dj.keystore`) para que todas las versiones tengan la misma firma. Es suficiente para uso personal; si algún día se publica en Google Play, conviene generar una clave privada nueva.
+
+### Compilar el APK a mano
+Requiere Node 22, JDK 21 y el SDK de Android:
+```bash
+npm ci
+npm run sync                 # copia la web a android/
+cd android && ./gradlew assembleRelease
+# → android/app/build/outputs/apk/release/app-release.apk
+```
+
+## Usarla desde el navegador
 
 La app necesita servirse por **HTTPS** (o `localhost`) para que funcione el motor de audio.
 
@@ -115,6 +140,7 @@ Toca la barra **Lista de reproducción → Biblioteca → Importar canciones** y
 index.html              interfaz
 css/style.css           estilos (look Pioneer, horizontal y vertical)
 js/app.js               decks, mezclador, biblioteca, reproductor, grabación
+js/native.js            integración con la app Android (servicio de reproducción, controles)
 js/automix.js           mezcla automática entre canciones (crossfade + beatmatch) y cola
 js/store.js             biblioteca guardada en el teléfono (IndexedDB): canciones, carpetas, cola
 js/library-ui.js        panel de cola y biblioteca, menús, diálogos
@@ -123,6 +149,9 @@ js/deck-processor.js    motor de audio (AudioWorklet): tempo, scratch, loops
 js/analysis.js          BPM, beat grid y forma de onda de 3 bandas
 js/ui.js                perillas, faders y botones táctiles
 sw.js, manifest.webmanifest, icons/   PWA (instalable y sin conexión)
+android/                proyecto Android (Capacitor) + servicio de reproducción en segundo plano
+capacitor.config.json   configuración de la app nativa
+.github/workflows/      compilación automática del APK
 ```
 
 Sin dependencias ni compilación: solo HTML, CSS y JavaScript con Web Audio API.
