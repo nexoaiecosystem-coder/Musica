@@ -18,7 +18,7 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand">MUSICA <span>DJ</span></div>
+      <div class="brand">Musica <span>DJ</span></div>
       <button class="btn small" id="btn-player">◀ REPRODUCTOR</button>
       <button class="btn small" id="btn-library">BIBLIOTECA</button>
       <button class="btn small" id="btn-quantize">QUANTIZE</button>
@@ -48,17 +48,29 @@
 
   <div class="player" id="player">
     <header class="p-head">
-      <div class="brand">MUSICA <span>DJ</span></div>
-      <label class="btn small add">+ AÑADIR MÚSICA
+      <div class="brand">Musica <span>DJ</span></div>
+      <label class="btn pill add">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v14h-2z"/><path d="M5 11h14v2H5z"/></svg>
+        Añadir
         <input type="file" id="player-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
       </label>
-      <button class="btn small" id="btn-djmode">🎛 MODO DJ</button>
+      <button class="btn pill" id="btn-djmode">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="12" r="1.5"/><path d="M17 4h2v16h-2z"/><path d="M15 9h6v3h-6z"/></svg>
+        Modo DJ
+      </button>
     </header>
 
     <div class="p-main">
       <div class="p-col">
-        <section class="panel p-now">
-          <span class="panel-label">DECK</span>
+        <section class="card p-now">
+          <div class="disc-wrap" id="p-discwrap">
+            <div class="disc" id="p-disc">
+              <div class="disc-label"><b id="p-disc-letter">♫</b></div>
+              <i class="disc-marker"></i>
+            </div>
+            <div class="disc-shine"></div>
+          </div>
+
           <div class="p-status" id="p-status">LISTO</div>
           <div class="p-title" id="p-title">Añade canciones para empezar</div>
           <div class="p-metarow">
@@ -68,16 +80,16 @@
           <div class="p-bar" id="p-bar"><canvas id="p-wave"></canvas></div>
           <div class="p-times"><span id="p-elapsed">0:00</span><span id="p-remain">-0:00</span></div>
           <div class="p-controls">
-            <button class="p-btn" id="p-prev" aria-label="Anterior">⏮</button>
-            <button class="p-btn big" id="p-play" aria-label="Reproducir o pausar">▶</button>
-            <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla">⏭</button>
+            <button class="p-btn" id="p-prev" aria-label="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5.5v13a.6.6 0 0 1-.9.5L9.5 12.5a.6.6 0 0 1 0-1L19.1 5a.6.6 0 0 1 .9.5z"/></svg></button>
+            <button class="p-btn big" id="p-play" aria-label="Reproducir o pausar"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.8v14.4a.8.8 0 0 0 1.2.7l11.6-7.2a.8.8 0 0 0 0-1.4L8.2 4.1a.8.8 0 0 0-1.2.7z"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg></button>
+            <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5.5v13a.6.6 0 0 0 .9.5l9.6-6.5a.6.6 0 0 0 0-1L4.9 5a.6.6 0 0 0-.9.5z"/></svg></button>
           </div>
-          <div class="p-upnext">Siguiente: <span id="p-nexttitle">—</span></div>
           <div class="meter h p-meter" id="p-meter" aria-hidden="true"><i></i></div>
+          <div class="p-upnext">A continuación · <span id="p-nexttitle">—</span></div>
         </section>
 
-        <section class="panel p-settings">
-          <span class="panel-label">MIX</span>
+        <h2 class="sec">Mezcla</h2>
+        <section class="card p-settings">
           <div class="p-row">
             <span>Transición</span>
             <div class="seg" id="p-fade">
@@ -92,14 +104,14 @@
             <span>Tempo<small id="p-mode-help"></small></span>
             <div class="seg" id="p-mode">
               <button data-m="original">Original</button>
-              <button data-m="match">Igualar y volver</button>
+              <button data-m="match">Igualar</button>
               <button data-m="fixed">BPM fijo</button>
             </div>
           </div>
           <div class="p-row p-master" id="p-master">
-            <span>BPM del set<small>Gira la perilla deslizando hacia arriba o abajo (0,1 BPM) o usa + / − (1 BPM).</small></span>
+            <span>BPM del set<small>Desliza la perilla arriba o abajo (0,1) o toca + / − (1).</small></span>
             <div class="bpm-ctl">
-              <div class="lcd"><small>BPM</small><b id="p-bpm">128.0</b></div>
+              <div class="lcd"><b id="p-bpm">128.0</b><small>BPM</small></div>
               <div class="encoder" id="p-encoder" role="slider" aria-label="Perilla de BPM"></div>
               <div class="steps">
                 <button class="p-step" data-d="1" aria-label="Subir 1 BPM">+</button>
@@ -110,11 +122,13 @@
         </section>
       </div>
 
-      <section class="panel p-queue">
-        <span class="panel-label">LISTA</span>
-        <p class="p-empty">Pulsa <b>+ AÑADIR MÚSICA</b> y elige varias canciones. Sonarán una tras otra con una mezcla suave entre ellas.</p>
-        <ul class="p-list" id="p-list"></ul>
-      </section>
+      <div class="p-col p-qcol">
+        <h2 class="sec">Lista</h2>
+        <section class="card p-queue">
+          <p class="p-empty">Toca <b>Añadir</b> y elige varias canciones. Sonarán una tras otra, mezcladas de forma suave.</p>
+          <ul class="p-list" id="p-list"></ul>
+        </section>
+      </div>
     </div>
   </div>
 

@@ -1150,7 +1150,7 @@ function renderPlayerList() {
     const cls = i === automix.index ? 'current' : i === nextIdx && automix.running ? 'next' : '';
     return `
     <li data-i="${i}" class="${cls}">
-      <span class="p-num">${i === automix.index ? '♪' : i + 1}</span>
+      <span class="p-num">${i === automix.index ? '<span class="eq"><i></i><i></i><i></i></span>' : i + 1}</span>
       <span class="p-name">${escapeHtml(it.name)}</span>
       ${bpmLabel(it)}
       <button class="p-del" aria-label="Quitar">✕</button>
@@ -1189,7 +1189,9 @@ function updatePlayer() {
   const nextItem = t ? incoming : automix.running && automix.nextIndex() >= 0 ? library[automix.nextIndex()] : null;
   setText(c, 'next', $('#p-nexttitle'), fading && automix.progress > 0.5 ? (item ? `${item.name} (saliendo)` : '—') : nextItem ? nextItem.name : '—');
 
-  setText(c, 'play', $('#p-play'), automix.isPlaying ? '❚❚' : '▶');
+  const playing = automix.isPlaying;
+  if (c.playing !== playing) { c.playing = playing; $('#player').classList.toggle('playing', playing); }
+  setText(c, 'letter', $('#p-disc-letter'), title ? (title.name.trim()[0] || '♫').toUpperCase() : '♫');
 
   let beat = -1;
   if (deck && deck.loaded) {
@@ -1197,6 +1199,8 @@ function updatePlayer() {
     const dur = deck.len / deck.sr;
     const mixStart = automix.nextIndex() >= 0 || t ? Math.max(0, 1 - (automix.fade * deck.tempo) / dur) : 1;
     drawPlayerWave(deck, sec / dur, mixStart);
+    $('#p-disc').style.transform = `rotate(${((sec / SEC_PER_REV) * 360) % 360}deg)`;
+    $('#p-discwrap').style.setProperty('--p', (sec / dur).toFixed(4));
     setText(c, 'el', $('#p-elapsed'), fmtTime(sec, '').slice(0, -2));
     setText(c, 'rem', $('#p-remain'), fmtTime(dur - sec, '-').slice(0, -2));
     if (deck.bpm && deck.playing) {
@@ -1205,6 +1209,7 @@ function updatePlayer() {
     }
   } else {
     drawPlayerWave(null);
+    $('#p-discwrap').style.setProperty('--p', '0');
     setText(c, 'el', $('#p-elapsed'), '0:00');
     setText(c, 'rem', $('#p-remain'), '-0:00');
   }

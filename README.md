@@ -2,7 +2,7 @@
 
 Reproductor de música para el celular que funciona como una **controladora Pioneer DJ** (estilo DDJ / CDJ): dos decks con jog wheels, mezclador con EQ de 3 bandas, crossfader, hot cues, loops y sync.
 
-La estética imita los paneles Pioneer: negro, textos y recuadros blancos y esquinas rectas; el color solo aparece en los "LEDs" (play, cue, pads, vúmetros) y en las formas de onda.
+La estética toma el ADN de Pioneer (negro, blanco, LEDs, jog, pantallas LCD) y lo reinterpreta con lenguaje de app actual: tarjetas de vidrio esmerilado, esquinas suaves, luz ambiental que respira con la música, textura de grano y tipografía del sistema.
 
 Es una aplicación web (PWA): no necesita instalar nada de una tienda. Se abre en el navegador del teléfono y se puede **añadir a la pantalla de inicio** para usarla a pantalla completa y sin conexión.
 
