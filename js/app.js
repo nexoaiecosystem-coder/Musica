@@ -3,6 +3,7 @@ import { analyzeBuffer, renderOverview, FPS, LAYERS } from './analysis.js';
 import { AutoMix } from './automix.js';
 import { store } from './store.js';
 import { LibraryUI } from './library-ui.js';
+import { isNative, nativeNowPlaying, onNativeAction } from './native.js';
 
 const SEC_PER_REV = 1.8; // 33⅓ rpm: una vuelta de jog = 1,8 s de audio
 const RANGES = [0.06, 0.10, 0.16, 0.50];
@@ -1472,16 +1473,47 @@ function buildMixer() {
 
 /* ─────────────────────────────── Arranque ─────────────────────────────── */
 
-let lastFrame = 0;
 let masterBuf = null;
 let masterLevel = 0;
 let lastLvl = '';
-function loop(now) {
-  const dt = lastFrame ? (now - lastFrame) / 1000 : 0;
-  lastFrame = now;
+// Lógica que debe seguir corriendo aunque la pantalla esté apagada:
+// mezcla automática, sync entre decks y estado del servicio nativo.
+let lastLogic = 0;
+function logicTick(now) {
+  const dt = lastLogic ? Math.min(0.25, (now - lastLogic) / 1000) : 0;
+  lastLogic = now;
   automix.tick();
+  for (const d of decks) d.frame(dt, false);
+  updateNative();
+  return dt;
+}
+
+// Con la pantalla bloqueada no hay requestAnimationFrame: un temporizador
+// mantiene viva la mezcla automática.
+let lastFrameAt = 0;
+setInterval(() => {
+  if (automix && performance.now() - lastFrameAt > 250) logicTick(performance.now());
+}, 100);
+
+function updateNative() {
+  if (!isNative) return;
+  const t = automix.trans;
+  const fading = t && t.phase === 'fade' && automix.progress > 0.5;
+  const item = fading ? queue[t.idx] : automix.running ? queue[automix.index] : null;
+  const deck = fading ? t.to : automix.active;
+  const bpm = deck && deck.loaded && deck.bpm ? `${(deck.bpm * deck.tempo).toFixed(1)} BPM` : '';
+  nativeNowPlaying({
+    title: item ? item.name : 'Musica DJ',
+    text: item ? ['Musica DJ', bpm].filter(Boolean).join(' · ') : 'Listo para reproducir',
+    playing: automix.isPlaying,
+  });
+}
+
+function loop(now) {
+  lastFrameAt = now;
+  logicTick(now);
   const djVisible = $('#player').hidden;
-  for (const d of decks) d.frame(dt, djVisible);
+  if (djVisible) for (const d of decks) d.frame(0, true);
   mixer.analyser.getFloatTimeDomainData(masterBuf);
   let pk = 0;
   for (let i = 0; i < masterBuf.length; i++) pk = Math.max(pk, Math.abs(masterBuf[i]));
@@ -1543,6 +1575,16 @@ async function init() {
   bindPlayer();
   queueAnalysis(store.allTracks());
 
+  // Controles de la notificación, pantalla de bloqueo y auriculares (app Android)
+  onNativeAction((action) => {
+    if (ctx.state !== 'running') ctx.resume();
+    if (action === 'next') automix.next();
+    else if (action === 'prev') automix.prev();
+    else if (action === 'toggle') automix.toggle();
+    else if (action === 'play' && !automix.isPlaying) automix.toggle();
+    else if (action === 'pause' && automix.isPlaying) automix.toggle();
+  });
+
   const unlock = () => { if (ctx.state !== 'running') ctx.resume(); };
   document.addEventListener('pointerdown', unlock, true);
   document.addEventListener('visibilitychange', () => {
@@ -1554,7 +1596,7 @@ async function init() {
 
   requestAnimationFrame(loop);
 
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  if (!isNative && 'serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }

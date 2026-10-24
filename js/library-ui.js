@@ -3,6 +3,7 @@
 
 import { store, fold, byName } from './store.js';
 import { fitPct } from './automix.js';
+import { isNative } from './native.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 
@@ -33,7 +34,9 @@ function hue(name) {
   return h;
 }
 
-const canPickFolders = 'webkitdirectory' in document.createElement('input') && !/iPhone|iPad|iPod/.test(navigator.userAgent);
+// Elegir carpetas solo funciona en navegadores de escritorio y Chrome para Android
+// (no en iPhone ni dentro de la app nativa).
+const canPickFolders = !isNative && 'webkitdirectory' in document.createElement('input') && !/iPhone|iPad|iPod/.test(navigator.userAgent);
 
 export class LibraryUI {
   constructor({ automix, queue, onImported }) {
