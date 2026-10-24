@@ -61,8 +61,11 @@
           <span class="panel-label">DECK</span>
           <div class="p-status" id="p-status">LISTO</div>
           <div class="p-title" id="p-title">Añade canciones para empezar</div>
-          <div class="p-meta" id="p-meta"></div>
-          <div class="p-bar" id="p-bar"><i></i></div>
+          <div class="p-metarow">
+            <div class="p-meta" id="p-meta"></div>
+            <div class="beats" id="p-beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="p-bar" id="p-bar"><canvas id="p-wave"></canvas></div>
           <div class="p-times"><span id="p-elapsed">0:00</span><span id="p-remain">-0:00</span></div>
           <div class="p-controls">
             <button class="p-btn" id="p-prev" aria-label="Anterior">⏮</button>
@@ -70,6 +73,7 @@
             <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla">⏭</button>
           </div>
           <div class="p-upnext">Siguiente: <span id="p-nexttitle">—</span></div>
+          <div class="meter h p-meter" id="p-meter" aria-hidden="true"><i></i></div>
         </section>
 
         <section class="panel p-settings">

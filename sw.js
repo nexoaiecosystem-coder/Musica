@@ -1,5 +1,5 @@
 // Service worker: guarda la app para que funcione sin conexión.
-const CACHE = 'musica-dj-v3';
+const CACHE = 'musica-dj-v4';
 const ASSETS = [
   './',
   'index.html',

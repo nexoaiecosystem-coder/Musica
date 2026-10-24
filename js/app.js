@@ -1191,21 +1191,62 @@ function updatePlayer() {
 
   setText(c, 'play', $('#p-play'), automix.isPlaying ? '❚❚' : '▶');
 
-  const bar = $('#p-bar');
+  let beat = -1;
   if (deck && deck.loaded) {
     const sec = deck.position / deck.sr;
     const dur = deck.len / deck.sr;
-    bar.style.setProperty('--p', (sec / dur).toFixed(4));
-    const mixStart = Math.max(0, 1 - (automix.fade * deck.tempo) / dur);
-    bar.style.setProperty('--m', automix.nextIndex() >= 0 || t ? mixStart.toFixed(4) : '1');
+    const mixStart = automix.nextIndex() >= 0 || t ? Math.max(0, 1 - (automix.fade * deck.tempo) / dur) : 1;
+    drawPlayerWave(deck, sec / dur, mixStart);
     setText(c, 'el', $('#p-elapsed'), fmtTime(sec, '').slice(0, -2));
     setText(c, 'rem', $('#p-remain'), fmtTime(dur - sec, '-').slice(0, -2));
+    if (deck.bpm && deck.playing) {
+      const b = Math.floor((deck.position - deck.firstBeat * deck.sr) / deck.beatLen());
+      beat = ((b % 4) + 4) % 4;
+    }
   } else {
-    bar.style.setProperty('--p', '0');
-    bar.style.setProperty('--m', '1');
+    drawPlayerWave(null);
     setText(c, 'el', $('#p-elapsed'), '0:00');
     setText(c, 'rem', $('#p-remain'), '-0:00');
   }
+  if (c.beat !== beat) {
+    c.beat = beat;
+    $('#p-beats').querySelectorAll('i').forEach((led, i) => led.classList.toggle('on', i === beat));
+  }
+  $('#p-meter').style.setProperty('--l', masterLevel.toFixed(3));
+}
+
+// Forma de onda de la canción en el reproductor (como la vista general de un CDJ).
+const pWave = { wave: null, base: null };
+function drawPlayerWave(deck, frac, mixStart) {
+  const cv = $('#p-wave');
+  const resized = fit(cv);
+  const c = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  c.clearRect(0, 0, W, H);
+  if (!deck) return;
+  if (resized || pWave.wave !== deck.wave || !pWave.base) {
+    pWave.wave = deck.wave;
+    pWave.base = document.createElement('canvas');
+    pWave.base.width = W;
+    pWave.base.height = H;
+    renderOverview(pWave.base, deck.wave);
+  }
+  c.drawImage(pWave.base, 0, 0);
+  const x = frac * W;
+  c.fillStyle = 'rgba(0,0,0,0.62)';
+  c.fillRect(0, 0, x, H);
+  if (mixStart < 1) {
+    const m = mixStart * W;
+    c.fillStyle = 'rgba(255,255,255,0.10)';
+    c.fillRect(m, 0, W - m, H);
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    for (let y = 0; y < H; y += 6 * DPR) c.fillRect(m, y, DPR, 3 * DPR);
+  }
+  c.shadowColor = '#fff';
+  c.shadowBlur = 10 * DPR;
+  c.fillStyle = '#fff';
+  c.fillRect(x - DPR, 0, 2 * DPR, H);
+  c.shadowBlur = 0;
 }
 
 /* ─────────────────────────── Barra superior ─────────────────────────── */
@@ -1315,12 +1356,20 @@ function buildMixer() {
 let lastFrame = 0;
 let masterBuf = null;
 let masterLevel = 0;
+let lastLvl = '';
 function loop(now) {
   const dt = lastFrame ? (now - lastFrame) / 1000 : 0;
   lastFrame = now;
   automix.tick();
   const djVisible = $('#player').hidden;
   for (const d of decks) d.frame(dt, djVisible);
+  mixer.analyser.getFloatTimeDomainData(masterBuf);
+  let pk = 0;
+  for (let i = 0; i < masterBuf.length; i++) pk = Math.max(pk, Math.abs(masterBuf[i]));
+  masterLevel = Math.max(clamp((20 * Math.log10(pk + 1e-9) + 42) / 42, 0, 1), masterLevel - 0.025);
+  // --lvl hace que las luces de la interfaz "respiren" con la música
+  const lvl = (masterLevel * masterLevel).toFixed(2);
+  if (lvl !== lastLvl) { lastLvl = lvl; document.documentElement.style.setProperty('--lvl', lvl); }
   if (!djVisible) {
     updatePlayer();
     requestAnimationFrame(loop);
@@ -1330,10 +1379,6 @@ function loop(now) {
   const curveBtn = $('#btn-curve');
   if (curveBtn.textContent !== curveText) curveBtn.textContent = curveText;
   for (const ch of mixer.channels) ch.meterEl.style.setProperty('--l', ch.meter().toFixed(3));
-  mixer.analyser.getFloatTimeDomainData(masterBuf);
-  let pk = 0;
-  for (let i = 0; i < masterBuf.length; i++) pk = Math.max(pk, Math.abs(masterBuf[i]));
-  masterLevel = Math.max(clamp((20 * Math.log10(pk + 1e-9) + 42) / 42, 0, 1), masterLevel - 0.025);
   $('#master-meter').style.setProperty('--l', masterLevel.toFixed(3));
   if (recorder && recorder.state === 'recording') {
     const s = Math.floor((now - recStart) / 1000);
