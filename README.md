@@ -2,6 +2,8 @@
 
 Reproductor de música para el celular que funciona como una **controladora Pioneer DJ** (estilo DDJ / CDJ): dos decks con jog wheels, mezclador con EQ de 3 bandas, crossfader, hot cues, loops y sync.
 
+La estética imita los paneles Pioneer: negro, textos y recuadros blancos y esquinas rectas; el color solo aparece en los "LEDs" (play, cue, pads, vúmetros) y en las formas de onda.
+
 Es una aplicación web (PWA): no necesita instalar nada de una tienda. Se abre en el navegador del teléfono y se puede **añadir a la pantalla de inicio** para usarla a pantalla completa y sin conexión.
 
 ## Reproductor con mezcla automática (pantalla principal)
@@ -18,7 +20,7 @@ Unos segundos antes de que termine una canción, la siguiente ya está cargada y
 |---|---|
 | **Original** | Cada canción suena a su BPM real; solo se mezcla el volumen. |
 | **Igualar y volver** | La siguiente entra al BPM de la anterior (si la diferencia es de hasta ±8 %), justo al inicio de un compás y con los beats alineados; después vuelve poco a poco (20 s) a su BPM real. |
-| **BPM fijo** | Eliges el **BPM del set** (por ejemplo 128) y **todas** las canciones suenan a ese tempo, como si movieras el fader de tempo de la controladora. Con −1 / −0,1 / +0,1 / +1 (o escribiendo el número) lo subes o bajas cuando quieras: 128 → 129 → 130… y la canción que suena se desliza suavemente al nuevo tempo. Las mezclas entran a compás y en fase. |
+| **BPM fijo** | Eliges el **BPM del set** (por ejemplo 128) y **todas** las canciones suenan a ese tempo, como si movieras el fader de tempo de la controladora. Lo subes o bajas cuando quieras con la **perilla** (deslizando el dedo hacia arriba o abajo, 0,1 BPM por paso) o con los botones **+ / −** (1 BPM; mantenidos, repiten): 128 → 129 → 130… y la canción que suena se desliza suavemente al nuevo tempo. Las mezclas entran a compás y en fase. |
 
 En **BPM fijo** la lista muestra a cuánto se ajusta cada canción (`124.5 → 128.0`). Se permite hasta ±16 % (el rango típico de una controladora). Canciones a mitad o al doble de tempo también encajan (64 o 256 BPM → 128). Si una canción queda fuera de rango (por ejemplo, reggaetón a 95 con el set en 128), se marca en rojo y suena a su tempo original, con un crossfade normal.
 

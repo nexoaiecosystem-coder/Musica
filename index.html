@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0b0d">
+  <meta name="theme-color" content="#000000">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,7 @@
 <body>
   <div id="app">
     <header class="topbar">
-      <div class="brand">MUSICA<span>DJ</span></div>
+      <div class="brand">MUSICA <span>DJ</span></div>
       <button class="btn small" id="btn-player">◀ REPRODUCTOR</button>
       <button class="btn small" id="btn-library">BIBLIOTECA</button>
       <button class="btn small" id="btn-quantize">QUANTIZE</button>
@@ -48,7 +48,7 @@
 
   <div class="player" id="player">
     <header class="p-head">
-      <div class="brand">MUSICA<span>DJ</span></div>
+      <div class="brand">MUSICA <span>DJ</span></div>
       <label class="btn small add">+ AÑADIR MÚSICA
         <input type="file" id="player-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
       </label>
@@ -56,22 +56,26 @@
     </header>
 
     <div class="p-main">
-      <section class="p-now">
-        <div class="p-status" id="p-status">LISTO</div>
-        <div class="p-title" id="p-title">Añade canciones para empezar</div>
-        <div class="p-meta" id="p-meta"></div>
-        <div class="p-bar" id="p-bar"><i></i></div>
-        <div class="p-times"><span id="p-elapsed">0:00</span><span id="p-remain">-0:00</span></div>
-        <div class="p-controls">
-          <button class="p-btn" id="p-prev" aria-label="Anterior">⏮</button>
-          <button class="p-btn big" id="p-play" aria-label="Reproducir o pausar">▶</button>
-          <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla">⏭</button>
-        </div>
-        <div class="p-upnext">Siguiente: <span id="p-nexttitle">—</span></div>
+      <div class="p-col">
+        <section class="panel p-now">
+          <span class="panel-label">DECK</span>
+          <div class="p-status" id="p-status">LISTO</div>
+          <div class="p-title" id="p-title">Añade canciones para empezar</div>
+          <div class="p-meta" id="p-meta"></div>
+          <div class="p-bar" id="p-bar"><i></i></div>
+          <div class="p-times"><span id="p-elapsed">0:00</span><span id="p-remain">-0:00</span></div>
+          <div class="p-controls">
+            <button class="p-btn" id="p-prev" aria-label="Anterior">⏮</button>
+            <button class="p-btn big" id="p-play" aria-label="Reproducir o pausar">▶</button>
+            <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla">⏭</button>
+          </div>
+          <div class="p-upnext">Siguiente: <span id="p-nexttitle">—</span></div>
+        </section>
 
-        <div class="p-settings">
+        <section class="panel p-settings">
+          <span class="panel-label">MIX</span>
           <div class="p-row">
-            <span>Transición entre canciones</span>
+            <span>Transición</span>
             <div class="seg" id="p-fade">
               <button data-s="0">Corte</button>
               <button data-s="6">6 s</button>
@@ -89,20 +93,21 @@
             </div>
           </div>
           <div class="p-row p-master" id="p-master">
-            <span>BPM del set<small>Todas las canciones suenan a este tempo. Súbelo o bájalo cuando quieras.</small></span>
-            <div class="stepper">
-              <button class="p-step" data-d="-1" aria-label="Bajar 1 BPM">−1</button>
-              <button class="p-step" data-d="-0.1" aria-label="Bajar 0,1 BPM">−.1</button>
-              <input id="p-bpm" type="number" inputmode="decimal" min="60" max="200" step="0.1" value="128" aria-label="BPM del set">
-              <button class="p-step" data-d="0.1" aria-label="Subir 0,1 BPM">+.1</button>
-              <button class="p-step" data-d="1" aria-label="Subir 1 BPM">+1</button>
+            <span>BPM del set<small>Gira la perilla deslizando hacia arriba o abajo (0,1 BPM) o usa + / − (1 BPM).</small></span>
+            <div class="bpm-ctl">
+              <div class="lcd"><small>BPM</small><b id="p-bpm">128.0</b></div>
+              <div class="encoder" id="p-encoder" role="slider" aria-label="Perilla de BPM"></div>
+              <div class="steps">
+                <button class="p-step" data-d="1" aria-label="Subir 1 BPM">+</button>
+                <button class="p-step" data-d="-1" aria-label="Bajar 1 BPM">−</button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      <section class="p-queue">
-        <div class="p-qhead">LISTA DE REPRODUCCIÓN</div>
+      <section class="panel p-queue">
+        <span class="panel-label">LISTA</span>
         <p class="p-empty">Pulsa <b>+ AÑADIR MÚSICA</b> y elige varias canciones. Sonarán una tras otra con una mezcla suave entre ellas.</p>
         <ul class="p-list" id="p-list"></ul>
       </section>

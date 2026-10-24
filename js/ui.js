@@ -156,3 +156,52 @@ export class Fader {
     this.el.style.setProperty('--v', this.value);
   }
 }
+
+// Perilla sin tope (encoder), como el selector de una controladora:
+// deslizar hacia arriba sube y hacia abajo baja, un paso cada `pxPerStep` píxeles.
+export class Encoder {
+  constructor(el, { pxPerStep = 9, onStep }) {
+    this.onStep = onStep;
+    this.angle = 0;
+    el.classList.add('encoder');
+    el.innerHTML = '<div class="enc-cap"><i></i></div>';
+    this.cap = el.querySelector('.enc-cap');
+    let drag = null;
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (drag) return;
+      el.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, acc: 0 };
+      el.classList.add('active');
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      const d = (drag.y - e.clientY) + (e.clientX - drag.x) * 0.5;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      drag.acc += d;
+      while (Math.abs(drag.acc) >= pxPerStep) {
+        const dir = Math.sign(drag.acc);
+        drag.acc -= dir * pxPerStep;
+        this.step(dir);
+      }
+    });
+    const end = (e) => {
+      if (drag && drag.id === e.pointerId) { drag = null; el.classList.remove('active'); }
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.step(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+  }
+
+  step(dir) {
+    this.angle += dir * 15;
+    this.cap.style.transform = `rotate(${this.angle}deg)`;
+    if (navigator.vibrate) navigator.vibrate(3);
+    if (this.onStep) this.onStep(dir);
+  }
+}

@@ -1,4 +1,4 @@
-import { Knob, Fader, press } from './ui.js';
+import { Knob, Fader, Encoder, press } from './ui.js';
 import { analyzeBuffer, renderOverview, FPS, LAYERS } from './analysis.js';
 import { AutoMix, fitPct } from './automix.js';
 
@@ -226,8 +226,7 @@ class Deck {
     this.root = root;
     this.channel = channel;
     this.waveCanvas = waveCanvas;
-    this.color = id === 'A' ? '#2c8cff' : '#ff8a1f';
-    root.style.setProperty('--deck', this.color);
+    this.color = '#ffffff';
     root.innerHTML = deckTemplate(id);
     this.ui = {};
     root.querySelectorAll('[data-ref]').forEach((el) => { this.ui[el.dataset.ref] = el; });
@@ -881,12 +880,12 @@ class Deck {
     fit(cv);
     const c = cv.getContext('2d');
     const W = cv.width, H = cv.height;
-    c.fillStyle = '#050607';
+    c.fillStyle = '#000';
     c.fillRect(0, 0, W, H);
     c.font = `700 ${Math.round(H * 0.28)}px system-ui, sans-serif`;
     c.textBaseline = 'top';
     if (!this.loaded) {
-      c.fillStyle = '#39404a';
+      c.fillStyle = '#4a4a4a';
       c.textAlign = 'center';
       c.fillText(`DECK ${this.id} · sin canción`, W / 2, H * 0.36);
       return;
@@ -1066,8 +1065,7 @@ function renderPrefs() {
   $('#p-mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.m === automix.tempoMode));
   $('#player').classList.toggle('fixed', automix.tempoMode === 'fixed');
   $('#p-mode-help').textContent = MODE_HELP[automix.tempoMode];
-  const input = $('#p-bpm');
-  if (document.activeElement !== input) input.value = automix.masterBpm.toFixed(1);
+  $('#p-bpm').textContent = automix.masterBpm.toFixed(1);
 }
 
 function showPlayer(on) {
@@ -1103,11 +1101,17 @@ function bindPlayer() {
     savePrefs();
     renderPrefs();
   };
+  new Encoder($('#p-encoder'), { onStep: (dir) => setBpm(automix.masterBpm + dir * 0.1) });
+  // + / −: un toque = 1 BPM; si se mantiene pulsado, repite.
   $('#p-master').querySelectorAll('.p-step').forEach((b) => {
-    b.addEventListener('click', () => setBpm(automix.masterBpm + +b.dataset.d));
+    let timer = null;
+    const stop = () => { clearTimeout(timer); timer = null; };
+    const repeat = (delay) => {
+      setBpm(automix.masterBpm + +b.dataset.d);
+      timer = setTimeout(() => repeat(180), delay);
+    };
+    press(b, () => { stop(); repeat(450); }, stop);
   });
-  $('#p-bpm').addEventListener('change', (e) => setBpm(parseFloat(String(e.target.value).replace(',', '.'))));
-  $('#p-bpm').addEventListener('blur', () => renderPrefs());
   $('#p-list').addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (!li) return;
