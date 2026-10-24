@@ -46,6 +46,7 @@ export class AutoMix {
     this.trans = null;
     this.ramp = null;
     this.held = null;
+    this.cursor = 0; // canción por la que empezar cuando no suena nada
   }
 
   get running() { return this.index >= 0; }
@@ -122,9 +123,16 @@ export class AutoMix {
     this.loadTok++;
     this.loadingIdx = -1;
     this.changed();
+    this.cursor = i;
     const tok = ++this.startTok;
-    await d.load(this.library[i]);
+    const ok = await d.load(this.library[i]);
     if (tok !== this.startTok) return;
+    if (!ok) {
+      this.library.splice(i, 1);
+      if (i < this.library.length) this.start(i);
+      else { this.index = -1; this.active = null; this.changed(); }
+      return;
+    }
     this.applyTempo(d, this.targetPct(d));
     this.xfader.set(this.side(d));
     d.play();
@@ -157,7 +165,7 @@ export class AutoMix {
   toggle() {
     const now = performance.now();
     if (!this.running) {
-      if (this.library.length) this.start(0);
+      if (this.library.length) this.start(clamp(this.cursor, 0, this.library.length - 1));
       return;
     }
     if (this.held) {
@@ -184,6 +192,7 @@ export class AutoMix {
 
   // Detiene el modo automático sin tocar el audio (p. ej. al cargar a mano en modo DJ).
   stop() {
+    if (this.index >= 0) this.cursor = this.index;
     this.stopTransitions();
     this.index = -1;
     this.active = null;
@@ -204,12 +213,79 @@ export class AutoMix {
     if (this.trans || i === this.index) return false;
     this.library.splice(i, 1);
     if (i < this.index) this.index--;
+    if (i < this.cursor) this.cursor--;
+    this.invalidateNext();
+    return true;
+  }
+
+  /* ── edición de la cola ── */
+
+  // La canción preparada en el deck libre ya no es la siguiente: hay que recargar.
+  invalidateNext() {
+    if (!this.trans) {
+      this.ready = -1;
+      this.loadTok++;
+      this.loadingIdx = -1;
+    }
+    this.changed();
+    this.preloadNext();
+  }
+
+  // Hace que `item` suene a continuación. Si no suena nada, empieza ya.
+  playNext(item) {
+    const q = this.library;
+    if (!this.running) {
+      const at = clamp(this.cursor, 0, q.length);
+      q.splice(at, 0, item);
+      this.start(at);
+      return 'now';
+    }
+    const at = (this.trans ? this.trans.idx : this.index) + 1;
+    q.splice(at, 0, item);
+    this.invalidateNext();
+    return 'next';
+  }
+
+  append(item) {
+    this.library.push(item);
+    this.changed();
+    this.preloadNext();
+  }
+
+  // Mueve una canción que ya está en la cola para que suene a continuación.
+  moveToNext(i) {
+    if (this.trans || i === this.index) return false;
+    const [item] = this.library.splice(i, 1);
+    if (i < this.index) this.index--;
+    if (i < this.cursor) this.cursor--;
+    if (this.running) {
+      this.library.splice(this.index + 1, 0, item);
+    } else {
+      this.library.splice(clamp(this.cursor, 0, this.library.length), 0, item);
+    }
+    this.invalidateNext();
+    return true;
+  }
+
+  // Quita todo lo que venía después de la canción actual.
+  clearUpcoming() {
+    if (this.trans) return false;
+    if (this.running) this.library.splice(this.index + 1);
+    else this.library.length = 0;
+    this.invalidateNext();
+    return true;
+  }
+
+  // Reemplaza la cola (p. ej. "reproducir carpeta") y empieza por `startIdx`.
+  replaceQueue(items, startIdx = 0) {
+    this.stopTransitions();
+    this.library.length = 0;
+    this.library.push(...items);
     this.ready = -1;
     this.loadTok++;
     this.loadingIdx = -1;
-    this.changed();
-    this.preloadNext();
-    return true;
+    if (items.length) this.start(startIdx);
+    else this.stop();
   }
 
   /* ── carga de la siguiente canción en el deck libre ── */
@@ -228,8 +304,16 @@ export class AutoMix {
     this.ready = -1;
     this.loadingIdx = i;
     d.setSync(false);
-    await d.load(this.library[i]);
+    const ok = await d.load(this.library[i]);
     if (tok !== this.loadTok) return false;
+    if (!ok) {
+      // archivo ilegible: se quita de la cola para no bloquear la mezcla
+      this.loadingIdx = -1;
+      const at = this.library.indexOf(this.library[i]);
+      if (at > this.index) this.library.splice(at, 1);
+      this.changed();
+      return false;
+    }
     d.setTempoPct(0, true);
     this.loadingIdx = -1;
     this.ready = i;

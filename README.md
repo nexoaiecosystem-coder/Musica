@@ -6,9 +6,30 @@ La estética toma el ADN de Pioneer (negro, blanco, LEDs, jog, pantallas LCD) y 
 
 Es una aplicación web (PWA): no necesita instalar nada de una tienda. Se abre en el navegador del teléfono y se puede **añadir a la pantalla de inicio** para usarla a pantalla completa y sin conexión.
 
-## Reproductor con mezcla automática (pantalla principal)
+## Pantalla principal
 
-Al abrir la app ves un reproductor normal: añades canciones, pulsas ▶ y suenan una tras otra con una **transición suave (crossfade)** entre ellas, pensada para música electrónica:
+- La **canción que suena**, con un disco que gira y su forma de onda (tócala para saltar).
+- **Anterior / Play-Pausa / Siguiente.**
+- **Tempo:** Original, Igualar o **BPM fijo**, con la perilla (deslizar arriba/abajo, 0,1 BPM) y los botones + / − (1 BPM). Tocar la perilla o + / − pasa directamente a BPM fijo partiendo del BPM de la canción que suena.
+- Abajo, la barra **Lista de reproducción** muestra qué sigue y abre el panel de música.
+- ⚙︎ **Ajustes:** duración de la transición, acceso al **Modo DJ** y espacio usado.
+
+## Lista de reproducción y biblioteca
+
+El panel tiene dos pestañas:
+
+**Cola** — lo que suena y lo que viene. Tocar una canción mezcla hacia ella ya; con **⋯** puedes ponerla *a continuación*, quitarla o guardarla en una carpeta. *Vaciar* borra lo que venía después.
+
+**Biblioteca** — tu música dentro de la app:
+- **Importar canciones** abre los archivos del teléfono (MP3, M4A, WAV, FLAC…). En Android también puedes **importar una carpeta entera**, que se crea igual dentro de la app.
+- **Tocar una canción = suena a continuación** (si no suena nada, empieza ya).
+- **Carpetas / listas:** crea carpetas (y subcarpetas), y con **⋯ → Añadir a carpeta** mete cualquier canción en una o varias. Cada carpeta tiene *Reproducir*, *Aleatorio* y *A la cola*.
+- **Buscador** por nombre de canción o carpeta (sin importar tildes ni mayúsculas).
+- Cada canción muestra su BPM y duración; en BPM fijo, a cuánto se ajustará (`124.5 → 128.0`) o si queda fuera de rango.
+
+Todo se **guarda en el teléfono** (canciones, carpetas, BPM analizados y la cola), así que sigue ahí al volver a abrir la app. El BPM se analiza en segundo plano al importar. Eliminar una canción de la app no borra el archivo original del teléfono.
+
+## Mezcla automática entre canciones
 
 Unos segundos antes de que termine una canción, la siguiente ya está cargada y analizada. Durante la mezcla el volumen pasa de una a otra con curva de potencia constante y **se intercambian los graves** a mitad de la transición, para que no choquen los dos bombos.
 
@@ -78,7 +99,7 @@ python3 -m http.server 8000
 y abre `http://localhost:8000`.
 
 ### Cargar música
-Pulsa **BIBLIOTECA → + AÑADIR MÚSICA** (o toca el título de un deck) y elige archivos de audio del teléfono: MP3, M4A/AAC, WAV, FLAC, OGG… Luego pulsa **A** o **B** para cargarlos en un deck.
+Toca la barra **Lista de reproducción → Biblioteca → Importar canciones** y elige archivos de audio del teléfono: MP3, M4A/AAC, WAV, FLAC, OGG… En el modo DJ, **BIBLIOTECA** muestra las mismas canciones; pulsa **A** o **B** para cargarlas en un deck.
 
 > Las canciones de Spotify/Apple Music/YouTube Music están protegidas y no se pueden abrir: usa archivos propios.
 
@@ -94,7 +115,10 @@ Pulsa **BIBLIOTECA → + AÑADIR MÚSICA** (o toca el título de un deck) y elig
 index.html              interfaz
 css/style.css           estilos (look Pioneer, horizontal y vertical)
 js/app.js               decks, mezclador, biblioteca, reproductor, grabación
-js/automix.js           mezcla automática entre canciones (crossfade + beatmatch)
+js/automix.js           mezcla automática entre canciones (crossfade + beatmatch) y cola
+js/store.js             biblioteca guardada en el teléfono (IndexedDB): canciones, carpetas, cola
+js/library-ui.js        panel de cola y biblioteca, menús, diálogos
+js/analysis-worker.js   análisis de BPM en segundo plano (Web Worker)
 js/deck-processor.js    motor de audio (AudioWorklet): tempo, scratch, loops
 js/analysis.js          BPM, beat grid y forma de onda de 3 bandas
 js/ui.js                perillas, faders y botones táctiles

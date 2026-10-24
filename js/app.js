@@ -1,6 +1,8 @@
 import { Knob, Fader, Encoder, press } from './ui.js';
 import { analyzeBuffer, renderOverview, FPS, LAYERS } from './analysis.js';
-import { AutoMix, fitPct } from './automix.js';
+import { AutoMix } from './automix.js';
+import { store } from './store.js';
+import { LibraryUI } from './library-ui.js';
 
 const SEC_PER_REV = 1.8; // 33⅓ rpm: una vuelta de jog = 1,8 s de audio
 const RANGES = [0.06, 0.10, 0.16, 0.50];
@@ -11,10 +13,10 @@ const ROLL_PADS = [1 / 16, 1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
 const JUMP_PADS = [-1, 1, -4, 4, -8, 8, -16, 16];
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 
-let ctx, mixer, automix, xfaderCtl;
+let ctx, mixer, automix, xfaderCtl, libUI;
 const decks = [];
 const settings = { quantize: true, zoom: 0 };
-const library = [];
+const queue = []; // cola de reproducción (canciones de la biblioteca)
 let libTarget = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -242,6 +244,7 @@ class Deck {
 
     this.sr = ctx.sampleRate;
     this.seq = 0;
+    this.loadTok = 0;
     this.range = 0.10;
     this.tempoPct = 0;
     this.vinyl = true;
@@ -303,24 +306,32 @@ class Deck {
 
   /* ── carga ── */
 
+  // Carga una canción en el deck. Devuelve false si no se pudo (o si otra
+  // carga más reciente la reemplazó).
   async load(item) {
+    const tok = ++this.loadTok;
     this.pause();
     this.ui.title.textContent = 'Cargando… ' + item.name;
     let buffer;
+    let info;
     try {
-      buffer = await ctx.decodeAudioData(await item.file.arrayBuffer());
+      const blob = await store.getFile(item);
+      if (!blob) throw new Error('sin archivo');
+      buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
     } catch (err) {
-      this.ui.title.textContent = 'No se pudo leer: ' + item.name;
-      return;
+      if (tok === this.loadTok) this.ui.title.textContent = 'No se pudo leer: ' + item.name;
+      store.markUnreadable(item.id);
+      return false;
     }
-    if (!item.info) {
+    if (tok !== this.loadTok) return false;
+    info = item.info || (await store.getAnalysis(item.id).catch(() => null));
+    if (!info) {
       this.ui.title.textContent = 'Analizando BPM… ' + item.name;
-      await new Promise((r) => setTimeout(r, 30));
-      item.info = analyzeBuffer(buffer);
-      item.bpm = item.info.bpm;
-      renderLibrary();
+      info = await analyzeAudio(buffer);
+      await store.saveAnalysis(item.id, info).catch(() => {});
+      if (!store.persistent) item.info = info;
     }
-    const info = item.info;
+    if (tok !== this.loadTok) return false;
     const left = buffer.getChannelData(0).slice();
     const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1).slice() : left;
     const transfer = right === left ? [left.buffer] : [left.buffer, right.buffer];
@@ -343,6 +354,7 @@ class Deck {
     this.ui.title.textContent = item.name;
     if (this.sync) this.matchTempo();
     this.renderPads();
+    return true;
   }
 
   /* ── transporte ── */
@@ -955,40 +967,94 @@ class Deck {
   }
 }
 
-/* ───────────────────────────── Biblioteca ───────────────────────────── */
+/* ─────────────────────────── Análisis en segundo plano ─────────────────────────── */
 
-const AUDIO_EXT = /\.(mp3|m4a|aac|mp4|wav|flac|ogg|oga|opus|aif|aiff|webm|wma)$/i;
+// El análisis (BPM, forma de onda) corre en un Web Worker para no trabar la
+// interfaz. Si el navegador no admite workers de módulo, se hace aquí mismo.
+let worker = null;
+let workerBroken = false;
+let workerSeq = 0;
+const workerJobs = new Map();
 
-function addFiles(files) {
-  const added = [];
-  for (const f of files) {
-    if (!(f.type.startsWith('audio') || AUDIO_EXT.test(f.name))) continue;
-    const item = { file: f, name: f.name.replace(/\.[^.]+$/, ''), bpm: null, info: null };
-    library.push(item);
-    added.push(item);
+function analyzeAudio(buffer) {
+  if (!workerBroken && !worker) {
+    try {
+      worker = new Worker(new URL('./analysis-worker.js', import.meta.url), { type: 'module' });
+      worker.onmessage = (e) => {
+        const job = workerJobs.get(e.data.id);
+        workerJobs.delete(e.data.id);
+        if (!job) return;
+        if (e.data.error) job.reject(new Error(e.data.error));
+        else job.resolve(e.data.info);
+      };
+      worker.onerror = () => {
+        workerBroken = true;
+        worker = null;
+        for (const job of workerJobs.values()) {
+          try { job.resolve(analyzeBuffer(job.buffer)); } catch (err) { job.reject(err); }
+        }
+        workerJobs.clear();
+      };
+    } catch {
+      workerBroken = true;
+    }
   }
-  renderLibrary();
-  if (added.length && libTarget) {
-    const target = libTarget;
-    closeLibrary();
-    automix.stop();
-    target.load(added[0]);
-  }
+  if (workerBroken) return Promise.resolve(analyzeBuffer(buffer));
+  // se envía la mezcla mono: es lo que usa el análisis y ocupa la mitad
+  const c0 = buffer.getChannelData(0);
+  const c1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : c0;
+  const mono = new Float32Array(c0.length);
+  for (let i = 0; i < mono.length; i++) mono[i] = (c0[i] + c1[i]) * 0.5;
+  return new Promise((resolve, reject) => {
+    const id = ++workerSeq;
+    workerJobs.set(id, { resolve, reject, buffer });
+    worker.postMessage({ id, c0: mono, c1: null, sr: buffer.sampleRate }, [mono.buffer]);
+  });
 }
 
-function renderLibrary() {
-  if (automix) {
-    renderPlayerList();
-    automix.preloadNext();
+// Analiza las canciones importadas una a una, para mostrar su BPM en la biblioteca.
+const pendingAnalysis = [];
+let analyzing = false;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function queueAnalysis(tracks) {
+  for (const t of tracks) if (t.bpm == null && !t.unreadable && !pendingAnalysis.includes(t)) pendingAnalysis.push(t);
+  runAnalysis();
+}
+
+async function runAnalysis() {
+  if (analyzing) return;
+  analyzing = true;
+  while (pendingAnalysis.length) {
+    if (automix.trans) { await sleep(1000); continue; } // no molestar durante una mezcla
+    const t = pendingAnalysis.shift();
+    if (!store.tracks.has(t.id) || t.bpm != null) continue;
+    try {
+      const blob = await store.getFile(t);
+      const buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const info = await analyzeAudio(buffer);
+      await store.saveAnalysis(t.id, info);
+      if (!store.persistent) t.info = info;
+    } catch {
+      await store.markUnreadable(t.id);
+    }
+    await sleep(120);
   }
+  analyzing = false;
+}
+
+/* ─────────────────────── Biblioteca del modo DJ ─────────────────────── */
+
+function renderLibrary() {
   const list = $('#lib-list');
-  $('#library').classList.toggle('empty', library.length === 0);
-  list.innerHTML = library.map((it, i) => `
-    <li data-i="${i}">
+  const tracks = store.allTracks();
+  $('#library').classList.toggle('empty', tracks.length === 0);
+  list.innerHTML = tracks.map((it) => `
+    <li data-id="${it.id}">
       <span class="lib-name">${escapeHtml(it.name)}</span>
       <span class="lib-bpm">${it.bpm ? it.bpm.toFixed(1) : ''}</span>
-      <button class="btn mini deck-a" data-load="0" data-i="${i}">A</button>
-      <button class="btn mini deck-b" data-load="1" data-i="${i}">B</button>
+      <button class="btn mini deck-a" data-load="0">A</button>
+      <button class="btn mini deck-b" data-load="1">B</button>
     </li>`).join('');
 }
 
@@ -999,6 +1065,7 @@ function escapeHtml(s) {
 function openLibrary(deck) {
   libTarget = deck || null;
   $('#lib-target').textContent = deck ? `→ cargar en DECK ${deck.id}` : '';
+  renderLibrary();
   $('#library').hidden = false;
 }
 
@@ -1007,31 +1074,45 @@ function closeLibrary() {
   libTarget = null;
 }
 
+async function importFiles(files) {
+  const added = await store.addFiles(files);
+  queueAnalysis(added);
+  return added;
+}
+
 function bindLibrary() {
-  $('#file-input').addEventListener('change', (e) => {
-    addFiles(e.target.files);
+  $('#file-input').addEventListener('change', async (e) => {
+    const added = await importFiles([...e.target.files]);
     e.target.value = '';
+    if (added.length && libTarget) {
+      const target = libTarget;
+      closeLibrary();
+      automix.stop();
+      target.load(added[0]);
+    } else {
+      renderLibrary();
+    }
   });
   $('#lib-close').addEventListener('click', closeLibrary);
   $('#lib-list').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-load]');
     const li = e.target.closest('li');
     if (!li) return;
-    const item = library[+li.dataset.i];
+    const item = store.tracks.get(li.dataset.id);
     const deck = btn ? decks[+btn.dataset.load] : libTarget;
-    if (!deck) return;
+    if (!deck || !item) return;
     automix.stop();
     closeLibrary();
     deck.load(item);
   });
   window.addEventListener('dragover', (e) => e.preventDefault());
-  window.addEventListener('drop', (e) => {
+  window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    if (e.dataTransfer.files.length) await importFiles([...e.dataTransfer.files]);
   });
 }
 
-/* ─────────────────────────── Reproductor simple ─────────────────────────── */
+/* ─────────────────────────── Reproductor ─────────────────────────── */
 
 const playerCache = {};
 
@@ -1055,9 +1136,9 @@ function savePrefs() {
 }
 
 const MODE_HELP = {
-  original: 'Cada canción a su BPM. Solo se mezcla el volumen.',
-  match: 'La siguiente entra al BPM de la anterior y luego vuelve poco a poco a su BPM real.',
-  fixed: 'Todas las canciones se ajustan al BPM del set (hasta ±16 %).',
+  original: 'Cada canción suena a su BPM. Toca la perilla o + / − para fijar un BPM.',
+  match: 'La siguiente entra al BPM de la anterior y vuelve poco a poco a su BPM real.',
+  fixed: 'Todas las canciones se ajustan a este BPM (hasta ±16 %).',
 };
 
 function renderPrefs() {
@@ -1065,21 +1146,52 @@ function renderPrefs() {
   $('#p-mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.m === automix.tempoMode));
   $('#player').classList.toggle('fixed', automix.tempoMode === 'fixed');
   $('#p-mode-help').textContent = MODE_HELP[automix.tempoMode];
-  $('#p-bpm').textContent = automix.masterBpm.toFixed(1);
+  if (automix.tempoMode === 'fixed') $('#p-bpm').textContent = automix.masterBpm.toFixed(1);
+  if (libUI) libUI.render();
 }
 
 function showPlayer(on) {
   $('#player').hidden = !on;
 }
 
+// Guarda la cola en el teléfono (con un pequeño retardo para agrupar cambios).
+let saveTimer = null;
+function saveQueue() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    store.saveState('queue', { ids: queue.map((t) => t.id), index: automix.running ? automix.index : automix.cursor }).catch(() => {});
+  }, 400);
+}
+
+async function restoreQueue() {
+  const st = await store.loadState('queue').catch(() => null);
+  if (!st || !st.ids) return;
+  const kept = st.ids.map((id) => store.tracks.get(id)).filter(Boolean);
+  queue.push(...kept);
+  automix.cursor = clamp(st.index || 0, 0, Math.max(0, kept.length - 1));
+}
+
+async function updateStorageInfo() {
+  const el = $('#storage-info');
+  const n = store.tracks.size;
+  let txt = `${n} ${n === 1 ? 'canción' : 'canciones'} · ${store.folders.size} ${store.folders.size === 1 ? 'carpeta' : 'carpetas'}`;
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const { usage } = await navigator.storage.estimate();
+      if (usage) txt += ` · ${(usage / 1048576).toFixed(0)} MB usados`;
+    }
+  } catch { /* sin datos */ }
+  if (!store.persistent) txt += ' · este navegador no permite guardar la biblioteca';
+  el.textContent = txt;
+}
+
 function bindPlayer() {
   loadPrefs();
   renderPrefs();
-  $('#player-input').addEventListener('change', (e) => {
-    addFiles(e.target.files);
-    e.target.value = '';
+  $('#p-play').addEventListener('click', () => {
+    if (!queue.length) { libUI.open('library'); return; }
+    automix.toggle();
   });
-  $('#p-play').addEventListener('click', () => automix.toggle());
   $('#p-next').addEventListener('click', () => automix.next());
   $('#p-prev').addEventListener('click', () => automix.prev());
   $('#p-fade').addEventListener('click', (e) => {
@@ -1092,35 +1204,32 @@ function bindPlayer() {
   $('#p-mode').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
+    if (b.dataset.m === 'fixed') seedMasterBpm();
     automix.setTempoMode(b.dataset.m);
     savePrefs();
     renderPrefs();
   });
-  const setBpm = (v) => {
-    automix.setMasterBpm(v);
+  // Tocar la perilla o + / − fuera del modo fijo pasa a BPM fijo,
+  // partiendo del BPM de la canción que suena.
+  const setBpm = (delta) => {
+    if (automix.tempoMode !== 'fixed') {
+      seedMasterBpm();
+      automix.setTempoMode('fixed');
+    }
+    automix.setMasterBpm(automix.masterBpm + delta);
     savePrefs();
     renderPrefs();
   };
-  new Encoder($('#p-encoder'), { onStep: (dir) => setBpm(automix.masterBpm + dir * 0.1) });
+  new Encoder($('#p-encoder'), { onStep: (dir) => setBpm(dir * 0.1) });
   // + / −: un toque = 1 BPM; si se mantiene pulsado, repite.
   $('#p-master').querySelectorAll('.p-step').forEach((b) => {
     let timer = null;
     const stop = () => { clearTimeout(timer); timer = null; };
     const repeat = (delay) => {
-      setBpm(automix.masterBpm + +b.dataset.d);
+      setBpm(+b.dataset.d);
       timer = setTimeout(() => repeat(180), delay);
     };
     press(b, () => { stop(); repeat(450); }, stop);
-  });
-  $('#p-list').addEventListener('click', (e) => {
-    const li = e.target.closest('li');
-    if (!li) return;
-    const i = +li.dataset.i;
-    if (e.target.closest('.p-del')) {
-      if (automix.remove(i)) renderLibrary();
-      return;
-    }
-    automix.playIndex(i);
   });
   $('#p-bar').addEventListener('pointerdown', (e) => {
     const a = automix.active;
@@ -1128,46 +1237,40 @@ function bindPlayer() {
     const r = e.currentTarget.getBoundingClientRect();
     a.seek(clamp((e.clientX - r.left) / r.width, 0, 1) * a.len);
   });
-  $('#btn-djmode').addEventListener('click', () => showPlayer(false));
+  $('#btn-settings').addEventListener('click', () => {
+    updateStorageInfo();
+    libUI.openSheet($('#settings'));
+  });
+  $('#settings').querySelector('[data-close]').addEventListener('click', () => libUI.closeSheet($('#settings')));
+  $('#btn-djmode').addEventListener('click', () => {
+    libUI.closeSheet($('#settings'));
+    showPlayer(false);
+  });
   $('#btn-player').addEventListener('click', () => showPlayer(true));
-  renderPlayerList();
 }
 
-function bpmLabel(it) {
-  if (!it.bpm) return '<span class="p-bpm"></span>';
-  const own = Number.isInteger(it.bpm) ? it.bpm : it.bpm.toFixed(1);
-  if (automix.tempoMode !== 'fixed') return `<span class="p-bpm">${own} BPM</span>`;
-  if (fitPct(it.bpm, automix.masterBpm) == null) return `<span class="p-bpm out">${own} · fuera de rango</span>`;
-  return `<span class="p-bpm">${own} → ${automix.masterBpm.toFixed(1)}</span>`;
+function seedMasterBpm() {
+  const d = automix.active;
+  if (automix.tempoMode !== 'fixed' && d && d.loaded && d.bpm) {
+    automix.setMasterBpm(Math.round(d.bpm * d.tempo * 10) / 10);
+  }
 }
 
-function renderPlayerList() {
-  const list = $('#p-list');
-  const t = automix.trans;
-  const nextIdx = t ? t.idx : automix.nextIndex();
-  $('#player').classList.toggle('empty', library.length === 0);
-  list.innerHTML = library.map((it, i) => {
-    const cls = i === automix.index ? 'current' : i === nextIdx && automix.running ? 'next' : '';
-    return `
-    <li data-i="${i}" class="${cls}">
-      <span class="p-num">${i === automix.index ? '<span class="eq"><i></i><i></i><i></i></span>' : i + 1}</span>
-      <span class="p-name">${escapeHtml(it.name)}</span>
-      ${bpmLabel(it)}
-      <button class="p-del" aria-label="Quitar">✕</button>
-    </li>`;
-  }).join('');
+function onQueueChange() {
+  saveQueue();
+  if (libUI) libUI.render();
 }
 
 function updatePlayer() {
   const c = playerCache;
   const a = automix.active;
   const t = automix.trans;
-  const item = automix.running ? library[automix.index] : null;
+  const item = automix.running ? queue[automix.index] : null;
   const fading = t && t.phase === 'fade';
-  const incoming = t ? library[t.idx] : null;
+  const incoming = t ? queue[t.idx] : null;
 
   let status = 'LISTO';
-  if (!library.length) status = 'SIN CANCIONES';
+  if (!queue.length) status = store.tracks.size ? 'COLA VACÍA' : 'SIN CANCIONES';
   else if (fading) status = `MEZCLANDO · ${Math.round(automix.progress * 100)}%`;
   else if (t) status = 'PREPARANDO LA MEZCLA…';
   else if (automix.held) status = 'EN PAUSA';
@@ -1176,7 +1279,8 @@ function updatePlayer() {
   setText(c, 'status', $('#p-status'), status);
 
   const title = fading && automix.progress > 0.5 ? incoming : item;
-  setText(c, 'title', $('#p-title'), title ? title.name : library.length ? 'Pulsa ▶ para empezar' : 'Añade canciones para empezar');
+  const idle = queue.length ? `Pulsa ▶ para empezar` : 'Abre la lista para elegir música';
+  setText(c, 'title', $('#p-title'), title ? title.name : idle);
 
   const deck = fading && automix.progress > 0.5 ? t.to : a;
   let meta = '';
@@ -1186,8 +1290,18 @@ function updatePlayer() {
   }
   setText(c, 'meta', $('#p-meta'), meta);
 
-  const nextItem = t ? incoming : automix.running && automix.nextIndex() >= 0 ? library[automix.nextIndex()] : null;
-  setText(c, 'next', $('#p-nexttitle'), fading && automix.progress > 0.5 ? (item ? `${item.name} (saliendo)` : '—') : nextItem ? nextItem.name : '—');
+  const nextItem = t ? incoming : automix.running && automix.nextIndex() >= 0 ? queue[automix.nextIndex()] : null;
+  let nextTxt = 'Toca para elegir canciones';
+  if (fading && automix.progress > 0.5) nextTxt = 'Mezclando…';
+  else if (nextItem) nextTxt = `A continuación: ${nextItem.name}`;
+  else if (!automix.running && queue.length) nextTxt = `${queue.length} ${queue.length === 1 ? 'canción' : 'canciones'} en la cola`;
+  else if (automix.running) nextTxt = 'Nada más en la cola · toca para añadir';
+  setText(c, 'next', $('#p-nexttitle'), nextTxt);
+  if (automix.tempoMode !== 'fixed') {
+    setText(c, 'lcd', $('#p-bpm'), deck && deck.loaded && deck.bpm ? (deck.bpm * deck.tempo).toFixed(1) : '---.-');
+  } else {
+    c.lcd = null;
+  }
 
   const playing = automix.isPlaying;
   if (c.playing !== playing) { c.playing = playing; $('#player').classList.toggle('playing', playing); }
@@ -1420,11 +1534,14 @@ async function init() {
   a.other = b;
   b.other = a;
   decks.push(a, b);
-  automix = new AutoMix({ decks, mixer, xfader: xfaderCtl, library, onChange: renderPlayerList });
+  await store.init();
+  automix = new AutoMix({ decks, mixer, xfader: xfaderCtl, library: queue, onChange: onQueueChange });
+  await restoreQueue();
+  libUI = new LibraryUI({ automix, queue, onImported: (added) => queueAnalysis(added) });
   bindTopbar();
   bindLibrary();
   bindPlayer();
-  renderLibrary();
+  queueAnalysis(store.allTracks());
 
   const unlock = () => { if (ctx.state !== 'running') ctx.resume(); };
   document.addEventListener('pointerdown', unlock, true);

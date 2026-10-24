@@ -49,19 +49,10 @@
   <div class="player" id="player">
     <header class="p-head">
       <div class="brand">Musica <span>DJ</span></div>
-      <label class="btn pill add">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v14h-2z"/><path d="M5 11h14v2H5z"/></svg>
-        Añadir
-        <input type="file" id="player-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
-      </label>
-      <button class="btn pill" id="btn-djmode">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="12" r="1.5"/><path d="M17 4h2v16h-2z"/><path d="M15 9h6v3h-6z"/></svg>
-        Modo DJ
-      </button>
+      <button class="icon-btn" id="btn-settings" aria-label="Ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
     </header>
 
     <div class="p-main">
-      <div class="p-col">
         <section class="card p-now">
           <div class="disc-wrap" id="p-discwrap">
             <div class="disc" id="p-disc">
@@ -85,13 +76,70 @@
             <button class="p-btn" id="p-next" aria-label="Siguiente con mezcla"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5.5v13a.6.6 0 0 0 .9.5l9.6-6.5a.6.6 0 0 0 0-1L4.9 5a.6.6 0 0 0-.9.5z"/></svg></button>
           </div>
           <div class="meter h p-meter" id="p-meter" aria-hidden="true"><i></i></div>
-          <div class="p-upnext">A continuación · <span id="p-nexttitle">—</span></div>
         </section>
 
-        <h2 class="sec">Mezcla</h2>
-        <section class="card p-settings">
+      <section class="card p-tempo">
+        <div class="p-tempo-head">
+          <span>Tempo</span>
+          <div class="seg" id="p-mode">
+            <button data-m="original">Original</button>
+            <button data-m="match">Igualar</button>
+            <button data-m="fixed">BPM fijo</button>
+          </div>
+        </div>
+        <div class="p-master" id="p-master">
+            <div class="bpm-ctl">
+              <div class="lcd"><b id="p-bpm">128.0</b><small>BPM</small></div>
+              <div class="encoder" id="p-encoder" role="slider" aria-label="Perilla de BPM"></div>
+              <div class="steps">
+                <button class="p-step" data-d="1" aria-label="Subir 1 BPM">+</button>
+                <button class="p-step" data-d="-1" aria-label="Bajar 1 BPM">−</button>
+              </div>
+            </div>
+        </div>
+        <p class="p-mode-help" id="p-mode-help"></p>
+      </section>
+    </div>
+
+    <button class="queue-bar" id="btn-queue">
+      <span class="qb-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="2" rx="1"/><rect x="3" y="11" width="13" height="2" rx="1"/><rect x="3" y="17" width="8" height="2" rx="1"/><path d="M18 11v6.2a2.3 2.3 0 1 0 2 2.3V13h2v-2z"/></svg></span>
+      <span class="qb-text"><b>Lista de reproducción</b><small id="p-nexttitle">Toca para elegir canciones</small></span>
+      <svg class="chev-up" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 15.4 12 9.8l5.6 5.6L19 14l-7-7-7 7z"/></svg>
+    </button>
+  </div>
+
+  <!-- Panel: cola + biblioteca -->
+  <div class="sheet-backdrop" id="sheet" hidden>
+    <section class="sheet" role="dialog" aria-label="Lista de reproducción">
+      <div class="sheet-grab" id="sheet-grab"><i></i></div>
+      <header class="sheet-head">
+        <div class="seg" id="sheet-tabs">
+          <button data-tab="queue">Cola</button>
+          <button data-tab="library">Biblioteca</button>
+        </div>
+        <button class="link-btn" id="sheet-close">Listo</button>
+      </header>
+      <div class="sheet-body" id="sheet-body">
+        <div class="tab" id="tab-queue"></div>
+        <div class="tab" id="tab-library" hidden>
+          <label class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 6 12l4.3 4.3-1.5 1.4-4.2-4.2A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg><input id="lib-search" type="search" placeholder="Buscar canciones o carpetas" autocomplete="off" enterkeyhint="search"></label>
+          <div class="lib-nav" id="lib-nav"></div>
+          <div class="chips" id="lib-actions"></div>
+          <ul class="rows" id="lib-rows"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Ajustes -->
+  <div class="sheet-backdrop" id="settings" hidden>
+    <section class="sheet small" role="dialog" aria-label="Ajustes">
+      <div class="sheet-grab"><i></i></div>
+      <header class="sheet-head"><b class="sheet-title">Ajustes</b><button class="link-btn" data-close>Listo</button></header>
+      <div class="sheet-body">
+        <div class="card p-settings">
           <div class="p-row">
-            <span>Transición</span>
+            <span>Transición entre canciones<small>Duración del crossfade.</small></span>
             <div class="seg" id="p-fade">
               <button data-s="0">Corte</button>
               <button data-s="6">6 s</button>
@@ -101,36 +149,45 @@
             </div>
           </div>
           <div class="p-row">
-            <span>Tempo<small id="p-mode-help"></small></span>
-            <div class="seg" id="p-mode">
-              <button data-m="original">Original</button>
-              <button data-m="match">Igualar</button>
-              <button data-m="fixed">BPM fijo</button>
-            </div>
+            <span>Modo DJ<small>Consola completa con dos decks, mezclador, hot cues y loops.</small></span>
+            <button class="btn pill" id="btn-djmode">Abrir</button>
           </div>
-          <div class="p-row p-master" id="p-master">
-            <span>BPM del set<small>Desliza la perilla arriba o abajo (0,1) o toca + / − (1).</small></span>
-            <div class="bpm-ctl">
-              <div class="lcd"><b id="p-bpm">128.0</b><small>BPM</small></div>
-              <div class="encoder" id="p-encoder" role="slider" aria-label="Perilla de BPM"></div>
-              <div class="steps">
-                <button class="p-step" data-d="1" aria-label="Subir 1 BPM">+</button>
-                <button class="p-step" data-d="-1" aria-label="Bajar 1 BPM">−</button>
-              </div>
-            </div>
+          <div class="p-row">
+            <span>Almacenamiento<small id="storage-info">—</small></span>
           </div>
-        </section>
+        </div>
       </div>
+    </section>
+  </div>
 
-      <div class="p-col p-qcol">
-        <h2 class="sec">Lista</h2>
-        <section class="card p-queue">
-          <p class="p-empty">Toca <b>Añadir</b> y elige varias canciones. Sonarán una tras otra, mezcladas de forma suave.</p>
-          <ul class="p-list" id="p-list"></ul>
-        </section>
+  <!-- Menú de acciones (estilo iOS) -->
+  <div class="action-backdrop" id="actions" hidden>
+    <div class="action-sheet">
+      <div class="action-group">
+        <div class="action-title" id="action-title"></div>
+        <div id="action-list"></div>
       </div>
+      <button class="action-cancel" id="action-cancel">Cancelar</button>
     </div>
   </div>
+
+  <!-- Diálogo (nombre de carpeta, confirmaciones) -->
+  <div class="dialog-backdrop" id="dialog" hidden>
+    <form class="dialog" id="dialog-form">
+      <h3 id="dialog-title"></h3>
+      <p id="dialog-msg"></p>
+      <input id="dialog-input" type="text" autocomplete="off" enterkeyhint="done">
+      <div class="dialog-btns">
+        <button type="button" id="dialog-cancel">Cancelar</button>
+        <button type="submit" id="dialog-ok">OK</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <input type="file" id="import-files" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus,.aif,.aiff" multiple hidden>
+  <input type="file" id="import-folder" webkitdirectory multiple hidden>
 
   <div class="overlay" id="library" hidden>
     <div class="lib-panel">

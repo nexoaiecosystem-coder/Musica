@@ -1,5 +1,5 @@
 // Service worker: guarda la app para que funcione sin conexión.
-const CACHE = 'musica-dj-v5';
+const CACHE = 'musica-dj-v6';
 const ASSETS = [
   './',
   'index.html',
@@ -8,6 +8,9 @@ const ASSETS = [
   'js/ui.js',
   'js/analysis.js',
   'js/automix.js',
+  'js/analysis-worker.js',
+  'js/store.js',
+  'js/library-ui.js',
   'js/deck-processor.js',
   'manifest.webmanifest',
   'icons/icon.svg',

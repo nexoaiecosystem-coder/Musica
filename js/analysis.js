@@ -11,10 +11,13 @@ export const LAYERS = [
 ];
 
 export function analyzeBuffer(buffer) {
-  const sr = buffer.sampleRate;
-  const len = buffer.length;
   const c0 = buffer.getChannelData(0);
   const c1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : c0;
+  return analyzeChannels(c0, c1, buffer.sampleRate);
+}
+
+export function analyzeChannels(c0, c1, sr) {
+  const len = c0.length;
   const hop = sr / FPS;
   const nBins = Math.max(1, Math.ceil(len / hop));
 
