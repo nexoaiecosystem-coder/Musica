@@ -3,11 +3,28 @@
 // siguiente canción. Al final de cada tema, la siguiente entra a tiempo con el
 // compás, al mismo BPM, y se intercambian los graves a mitad de la mezcla
 // para que los dos bombos no choquen.
+//
+// Modos de tempo:
+//   'original' → cada canción a su BPM, crossfade sin tocar el tempo
+//   'match'    → la siguiente se iguala a la anterior y luego vuelve a su BPM
+//   'fixed'    → todas suenan al BPM del set que elige el usuario
 
-const MAX_TEMPO_CHANGE = 0.08; // no se fuerza más de ±8 % para igualar BPM
+const MAX_TEMPO_CHANGE = 0.08; // modo 'match': no se fuerza más de ±8 %
+const FIXED_MAX = 0.16;        // modo 'fixed': hasta ±16 %, como el rango de una controladora
 const RAMP_MS = 20000;         // tras la mezcla, vuelve poco a poco a su tempo original
+const GLIDE_PER_SEC = 0.006;   // al cambiar el BPM del set, el tempo se mueve 0,6 % por segundo
+const RANGES = [0.06, 0.10, 0.16, 0.50];
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// Cambio de tempo para que una canción suene a `master` BPM (admite doble/mitad).
+// Devuelve null si haría falta más de ±16 %.
+export function fitPct(bpm, master) {
+  if (!bpm) return null;
+  const r = master / bpm;
+  const best = [r, r * 2, r / 2].reduce((a, b) => (Math.abs(b - 1) < Math.abs(a - 1) ? b : a));
+  return Math.abs(best - 1) <= FIXED_MAX ? best - 1 : null;
+}
 
 export class AutoMix {
   constructor({ decks, mixer, xfader, library, onChange }) {
@@ -17,7 +34,9 @@ export class AutoMix {
     this.library = library;
     this.onChange = onChange;
     this.fade = 12;
-    this.beatmatch = true;
+    this.tempoMode = 'match';
+    this.masterBpm = 128;
+    this.lastTick = 0;
     this.active = null;
     this.index = -1;
     this.ready = -1;
@@ -32,6 +51,7 @@ export class AutoMix {
   get running() { return this.index >= 0; }
   get idle() { return this.active ? this.active.other : this.decks[1]; }
   get isPlaying() { return this.running && !this.held && this.decks.some((d) => d.playing); }
+  get beatmatch() { return this.tempoMode !== 'original'; }
   get progress() { return this.trans && this.trans.phase === 'fade' ? this.trans.p || 0 : 0; }
 
   side(d) { return this.decks.indexOf(d); }
@@ -47,8 +67,43 @@ export class AutoMix {
   }
 
   canMatch(a, b) {
-    if (!this.beatmatch || !a.bpm || !b.bpm) return false;
-    return Math.abs(b.syncRatio() - 1) <= MAX_TEMPO_CHANGE;
+    if (!a.bpm || !b.bpm) return false;
+    if (this.tempoMode === 'match') return Math.abs(b.syncRatio() - 1) <= MAX_TEMPO_CHANGE;
+    if (this.tempoMode === 'fixed') return fitPct(a.bpm, this.masterBpm) != null && fitPct(b.bpm, this.masterBpm) != null;
+    return false;
+  }
+
+  // Tempo que debería tener un deck fuera de las mezclas.
+  targetPct(deck) {
+    return this.tempoMode === 'fixed' ? fitPct(deck.bpm, this.masterBpm) ?? 0 : 0;
+  }
+
+  applyTempo(deck, pct) {
+    if (Math.abs(pct) > deck.range) deck.setRange(RANGES.find((r) => r >= Math.abs(pct)) || RANGES[RANGES.length - 1]);
+    deck.setTempoPct(pct, true);
+  }
+
+  glide(deck, target, dt) {
+    const diff = target - deck.tempoPct;
+    if (Math.abs(diff) < 1e-5) return;
+    const step = GLIDE_PER_SEC * dt;
+    this.applyTempo(deck, deck.tempoPct + clamp(diff, -step, step));
+  }
+
+  setTempoMode(mode) {
+    this.tempoMode = mode;
+    this.ramp = null;
+    const a = this.active;
+    if (a && a.loaded && mode !== 'fixed' && !this.trans && Math.abs(a.tempoPct) > 1e-4) {
+      this.ramp = { deck: a, from: a.tempoPct, t0: performance.now(), dur: 5000 };
+    }
+    this.changed();
+  }
+
+  setMasterBpm(v) {
+    if (!Number.isFinite(v)) return;
+    this.masterBpm = clamp(Math.round(v * 10) / 10, 60, 200);
+    this.changed();
   }
 
   /* ── control desde la interfaz ── */
@@ -70,7 +125,7 @@ export class AutoMix {
     const tok = ++this.startTok;
     await d.load(this.library[i]);
     if (tok !== this.startTok) return;
-    d.setTempoPct(0, true);
+    this.applyTempo(d, this.targetPct(d));
     this.xfader.set(this.side(d));
     d.play();
     this.changed();
@@ -205,15 +260,20 @@ export class AutoMix {
     const a = this.active;
     if (!a || !a.loaded) return;
     const now = performance.now();
+    const dt = this.lastTick ? Math.min(0.1, (now - this.lastTick) / 1000) : 0;
+    this.lastTick = now;
+    const t = this.trans;
 
     if (this.ramp) {
       const r = this.ramp;
       const p = clamp((now - r.t0) / r.dur, 0, 1);
       r.deck.setTempoPct(r.from * (1 - p), true);
       if (p >= 1) this.ramp = null;
+    } else if (this.tempoMode === 'fixed') {
+      // Durante una mezcla, la que entra va en SYNC y sigue a esta.
+      this.glide(a, this.targetPct(a), dt);
     }
 
-    const t = this.trans;
     if (t) {
       if (t.phase === 'wait') this.waitForBar(t, now);
       else if (t.phase === 'fade') this.stepFade(t, now);
@@ -259,7 +319,7 @@ export class AutoMix {
       b.setSync(true);
       b.matchTempo();
     } else {
-      b.setTempoPct(0, true);
+      this.applyTempo(b, this.targetPct(b));
     }
     b.seek(b.cue);
     t.bassSwap = a.playing && this.fade > 0;
@@ -298,7 +358,7 @@ export class AutoMix {
     this.index = t.idx;
     this.trans = null;
     this.ready = -1;
-    if (Math.abs(b.tempoPct) > 1e-4) this.ramp = { deck: b, from: b.tempoPct, t0: now, dur: RAMP_MS };
+    if (this.tempoMode === 'match' && Math.abs(b.tempoPct) > 1e-4) this.ramp = { deck: b, from: b.tempoPct, t0: now, dur: RAMP_MS };
     this.changed();
     this.preloadNext();
   }

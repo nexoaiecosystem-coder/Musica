@@ -1,6 +1,6 @@
 import { Knob, Fader, press } from './ui.js';
 import { analyzeBuffer, renderOverview, FPS, LAYERS } from './analysis.js';
-import { AutoMix } from './automix.js';
+import { AutoMix, fitPct } from './automix.js';
 
 const SEC_PER_REV = 1.8; // 33⅓ rpm: una vuelta de jog = 1,8 s de audio
 const RANGES = [0.06, 0.10, 0.16, 0.50];
@@ -1039,23 +1039,35 @@ const playerCache = {};
 function loadPrefs() {
   try {
     const fade = localStorage.getItem('musica.fade');
-    const bm = localStorage.getItem('musica.beatmatch');
+    const mode = localStorage.getItem('musica.tempoMode');
+    const bpm = localStorage.getItem('musica.masterBpm');
     if (fade != null) automix.fade = +fade;
-    if (bm != null) automix.beatmatch = bm === '1';
+    if (mode) automix.tempoMode = mode;
+    if (bpm != null) automix.masterBpm = +bpm;
   } catch { /* sin almacenamiento */ }
 }
 
 function savePrefs() {
   try {
     localStorage.setItem('musica.fade', String(automix.fade));
-    localStorage.setItem('musica.beatmatch', automix.beatmatch ? '1' : '0');
+    localStorage.setItem('musica.tempoMode', automix.tempoMode);
+    localStorage.setItem('musica.masterBpm', String(automix.masterBpm));
   } catch { /* sin almacenamiento */ }
 }
 
+const MODE_HELP = {
+  original: 'Cada canción a su BPM. Solo se mezcla el volumen.',
+  match: 'La siguiente entra al BPM de la anterior y luego vuelve poco a poco a su BPM real.',
+  fixed: 'Todas las canciones se ajustan al BPM del set (hasta ±16 %).',
+};
+
 function renderPrefs() {
   $('#p-fade').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.s === automix.fade));
-  $('#p-beatmatch').classList.toggle('on', automix.beatmatch);
-  $('#p-beatmatch').setAttribute('aria-checked', String(automix.beatmatch));
+  $('#p-mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.m === automix.tempoMode));
+  $('#player').classList.toggle('fixed', automix.tempoMode === 'fixed');
+  $('#p-mode-help').textContent = MODE_HELP[automix.tempoMode];
+  const input = $('#p-bpm');
+  if (document.activeElement !== input) input.value = automix.masterBpm.toFixed(1);
 }
 
 function showPlayer(on) {
@@ -1079,11 +1091,23 @@ function bindPlayer() {
     savePrefs();
     renderPrefs();
   });
-  $('#p-beatmatch').addEventListener('click', () => {
-    automix.beatmatch = !automix.beatmatch;
+  $('#p-mode').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    automix.setTempoMode(b.dataset.m);
     savePrefs();
     renderPrefs();
   });
+  const setBpm = (v) => {
+    automix.setMasterBpm(v);
+    savePrefs();
+    renderPrefs();
+  };
+  $('#p-master').querySelectorAll('.p-step').forEach((b) => {
+    b.addEventListener('click', () => setBpm(automix.masterBpm + +b.dataset.d));
+  });
+  $('#p-bpm').addEventListener('change', (e) => setBpm(parseFloat(String(e.target.value).replace(',', '.'))));
+  $('#p-bpm').addEventListener('blur', () => renderPrefs());
   $('#p-list').addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (!li) return;
@@ -1105,6 +1129,14 @@ function bindPlayer() {
   renderPlayerList();
 }
 
+function bpmLabel(it) {
+  if (!it.bpm) return '<span class="p-bpm"></span>';
+  const own = Number.isInteger(it.bpm) ? it.bpm : it.bpm.toFixed(1);
+  if (automix.tempoMode !== 'fixed') return `<span class="p-bpm">${own} BPM</span>`;
+  if (fitPct(it.bpm, automix.masterBpm) == null) return `<span class="p-bpm out">${own} · fuera de rango</span>`;
+  return `<span class="p-bpm">${own} → ${automix.masterBpm.toFixed(1)}</span>`;
+}
+
 function renderPlayerList() {
   const list = $('#p-list');
   const t = automix.trans;
@@ -1116,7 +1148,7 @@ function renderPlayerList() {
     <li data-i="${i}" class="${cls}">
       <span class="p-num">${i === automix.index ? '♪' : i + 1}</span>
       <span class="p-name">${escapeHtml(it.name)}</span>
-      <span class="p-bpm">${it.bpm ? Math.round(it.bpm) + ' BPM' : ''}</span>
+      ${bpmLabel(it)}
       <button class="p-del" aria-label="Quitar">✕</button>
     </li>`;
   }).join('');

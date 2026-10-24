@@ -8,12 +8,23 @@ Es una aplicación web (PWA): no necesita instalar nada de una tienda. Se abre e
 
 Al abrir la app ves un reproductor normal: añades canciones, pulsas ▶ y suenan una tras otra con una **transición suave (crossfade)** entre ellas, pensada para música electrónica:
 
-1. Unos segundos antes de que termine una canción, la siguiente ya está cargada y analizada.
-2. Con **Igualar BPM y compás** activado, la siguiente se ajusta al tempo de la que suena (si la diferencia es de hasta ±8 %) y **entra justo al inicio de un compás**, con los beats alineados.
-3. Durante la mezcla el volumen pasa de una a otra con curva de potencia constante y **se intercambian los graves** a mitad de la transición, para que no choquen los dos bombos.
-4. Al terminar, la nueva canción vuelve poco a poco (20 s) a su tempo original.
+Unos segundos antes de que termine una canción, la siguiente ya está cargada y analizada. Durante la mezcla el volumen pasa de una a otra con curva de potencia constante y **se intercambian los graves** a mitad de la transición, para que no choquen los dos bombos.
 
-Puedes elegir la duración de la transición: **Corte, 6, 12, 20 o 30 s**. ⏭ empieza la mezcla hacia la siguiente en el próximo compás, y tocar una canción de la lista mezcla hacia ella. Si las canciones tienen BPM muy distintos, se hace un crossfade normal sin cambiar el tempo.
+**Duración de la transición:** Corte, 6, 12, 20 o 30 s.
+
+**Tempo** (tres modos):
+
+| Modo | Qué hace |
+|---|---|
+| **Original** | Cada canción suena a su BPM real; solo se mezcla el volumen. |
+| **Igualar y volver** | La siguiente entra al BPM de la anterior (si la diferencia es de hasta ±8 %), justo al inicio de un compás y con los beats alineados; después vuelve poco a poco (20 s) a su BPM real. |
+| **BPM fijo** | Eliges el **BPM del set** (por ejemplo 128) y **todas** las canciones suenan a ese tempo, como si movieras el fader de tempo de la controladora. Con −1 / −0,1 / +0,1 / +1 (o escribiendo el número) lo subes o bajas cuando quieras: 128 → 129 → 130… y la canción que suena se desliza suavemente al nuevo tempo. Las mezclas entran a compás y en fase. |
+
+En **BPM fijo** la lista muestra a cuánto se ajusta cada canción (`124.5 → 128.0`). Se permite hasta ±16 % (el rango típico de una controladora). Canciones a mitad o al doble de tempo también encajan (64 o 256 BPM → 128). Si una canción queda fuera de rango (por ejemplo, reggaetón a 95 con el set en 128), se marca en rojo y suena a su tempo original, con un crossfade normal.
+
+> Igual que en una controladora sin *Master Tempo*, al cambiar el tempo también cambia un poco el tono.
+
+⏭ empieza la mezcla hacia la siguiente en el próximo compás, y tocar una canción de la lista mezcla hacia ella.
 
 Con **🎛 MODO DJ** pasas a la consola completa (también ves cómo la mezcla automática mueve el crossfader y los EQ). Si cargas una canción a mano en un deck, la mezcla automática se detiene.
 
