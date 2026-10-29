@@ -4,6 +4,7 @@ import { AutoMix } from './automix.js';
 import { store } from './store.js';
 import { LibraryUI } from './library-ui.js';
 import { isNative, nativeNowPlaying, onNativeAction } from './native.js';
+import { Updater } from './updater.js';
 
 const SEC_PER_REV = 1.8; // 33⅓ rpm: una vuelta de jog = 1,8 s de audio
 const RANGES = [0.06, 0.10, 0.16, 0.50];
@@ -1250,6 +1251,33 @@ function bindPlayer() {
   $('#btn-player').addEventListener('click', () => showPlayer(true));
 }
 
+function renderUpdateState(st) {
+  $('#update-row').hidden = !isNative;
+  const banner = $('#update-banner');
+  if (st.apk) {
+    banner.textContent = 'Nueva versión de la app disponible · Actualizar';
+    banner.dataset.kind = 'apk';
+    banner.hidden = false;
+  } else if (st.pending) {
+    banner.textContent = 'Actualización lista · Toca para aplicarla';
+    banner.dataset.kind = 'web';
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+  const web = st.web ? new Date(st.web * 1000).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'desarrollo';
+  $('#version-info').textContent = `App ${st.native ?? '—'} · interfaz del ${web}${st.busy ? ' · buscando…' : ''}`;
+  $('#btn-check-update').disabled = st.busy;
+}
+
+function bindUpdater(updater) {
+  $('#update-banner').addEventListener('click', (e) => {
+    if (e.currentTarget.dataset.kind === 'apk') updater.installApk();
+    else updater.applyNow();
+  });
+  $('#btn-check-update').addEventListener('click', () => updater.check(true));
+}
+
 function seedMasterBpm() {
   const d = automix.active;
   if (automix.tempoMode !== 'fixed' && d && d.loaded && d.bpm) {
@@ -1574,6 +1602,15 @@ async function init() {
   bindLibrary();
   bindPlayer();
   queueAnalysis(store.allTracks());
+
+  // Actualizaciones de la app Android (interfaz sin reinstalar + APK nuevo)
+  const updater = new Updater({
+    isPlaying: () => automix.isPlaying || decks.some((d) => d.playing),
+    toast: (m) => libUI.toast(m),
+    onState: renderUpdateState,
+  });
+  bindUpdater(updater);
+  updater.start();
 
   // Controles de la notificación, pantalla de bloqueo y auriculares (app Android)
   onNativeAction((action) => {

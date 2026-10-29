@@ -2,16 +2,19 @@
   "name": "musica-dj",
   "version": "1.0.0",
   "private": true,
-  "description": "Reproductor con mezcla automática y controlador DJ estilo Pioneer para el celular.",
+  "description": "Reproductor con mezcla autom\u00e1tica y controlador DJ estilo Pioneer para el celular.",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
-    "sync": "npm run build:web && npx cap sync android"
+    "sync": "npm run build:web && npx cap sync android",
+    "test": "node tests/smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.3"
-  }
+    "@capacitor/cli": "^8.5.3",
+    "playwright": "1.63.0"
+  },
+  "type": "module"
 }

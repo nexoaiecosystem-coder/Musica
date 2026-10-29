@@ -1,0 +1,150 @@
+name: Publicar
+
+# En cada cambio:
+#  1. pruebas: abre la app en un navegador y recorre lo esencial. Si algo falla,
+#     no se publica nada.
+#  2. web: publica la interfaz en GitHub Pages. La app instalada se actualiza
+#     sola desde ahí (y también sirve como versión web).
+#  3. apk: compila la app de Android y la deja en Releases (android-latest).
+#     Solo hace falta instalarla de nuevo cuando sube native-version.json.
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'css/**'
+      - 'js/**'
+      - 'icons/**'
+      - 'android/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'native-version.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - '.github/workflows/publicar.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publicar
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    outputs:
+      web_version: ${{ steps.ver.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Versión de la interfaz (fecha del commit)
+        id: ver
+        run: echo "web=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+      - run: npx playwright install --with-deps chromium
+      - name: Preparar la app
+        run: npm run build:web
+        env:
+          WEB_VERSION: ${{ steps.ver.outputs.web }}
+      - name: Probar la app en un navegador
+        run: npm test
+
+  web:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Preparar la app y el paquete de actualización
+        run: |
+          npm run build:web
+          cd www && zip -qr ../bundle.zip . && cd ..
+          mv bundle.zip www/bundle.zip
+        env:
+          WEB_VERSION: ${{ needs.pruebas.outputs.web_version }}
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  apk:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Copiar la app web al proyecto Android
+        run: npm run build:web && npx cap sync android
+        env:
+          WEB_VERSION: ${{ needs.pruebas.outputs.web_version }}
+
+      # La clave de firma es privada: vive en el secreto ANDROID_KEYSTORE_B64.
+      - name: Clave de firma
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/release.keystore
+            echo "HAS_KEY=true" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Falta el secreto ANDROID_KEYSTORE_B64: el APK se firma en modo prueba y no se publica en Releases."
+          fi
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          rm -f app/release.keystore
+
+      - name: Preparar archivo
+        run: cp android/app/build/outputs/apk/release/app-release.apk MusicaDJ.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MusicaDJ-apk
+          path: MusicaDJ.apk
+
+      - name: Publicar en Releases
+        if: env.HAS_KEY == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          target_commitish: ${{ github.sha }}
+          name: Musica DJ para Android
+          body: |
+            **Instalar:** descarga `MusicaDJ.apk` desde el teléfono, ábrelo y permite "instalar apps de esta fuente" si Android lo pide.
+
+            Solo hace falta instalarla una vez: la app se actualiza sola al abrirla. Si alguna vez sale una versión nativa nueva, la propia app muestra un botón **Actualizar**.
+
+            Commit ${{ github.sha }}
+          files: MusicaDJ.apk
+          make_latest: true

@@ -101,6 +101,8 @@
       </section>
     </div>
 
+    <button class="update-banner" id="update-banner" hidden></button>
+
     <button class="queue-bar" id="btn-queue">
       <span class="qb-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="2" rx="1"/><rect x="3" y="11" width="13" height="2" rx="1"/><rect x="3" y="17" width="8" height="2" rx="1"/><path d="M18 11v6.2a2.3 2.3 0 1 0 2 2.3V13h2v-2z"/></svg></span>
       <span class="qb-text"><b>Lista de reproducción</b><small id="p-nexttitle">Toca para elegir canciones</small></span>
@@ -154,6 +156,10 @@
           </div>
           <div class="p-row">
             <span>Almacenamiento<small id="storage-info">—</small></span>
+          </div>
+          <div class="p-row" id="update-row" hidden>
+            <span>Versión<small id="version-info">—</small></span>
+            <button class="btn pill" id="btn-check-update">Buscar actualizaciones</button>
           </div>
         </div>
       </div>

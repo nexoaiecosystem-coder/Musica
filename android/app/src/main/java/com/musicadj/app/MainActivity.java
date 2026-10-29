@@ -9,6 +9,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Plugin propio: mantiene la música sonando con la pantalla bloqueada.
         registerPlugin(PlaybackPlugin.class);
+        // Actualizaciones de la interfaz sin reinstalar y del APK desde la app.
+        registerPlugin(UpdaterPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

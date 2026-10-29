@@ -84,19 +84,30 @@ Las perillas se giran arrastrando hacia arriba/abajo. **Doble toque** en una per
 
 ## Instalar en Android (app nativa)
 
-1. En el teléfono, abre la página de **Releases** del repositorio en GitHub y entra en **Musica DJ para Android** (etiqueta `android-latest`).
-2. Descarga **`MusicaDJ.apk`** y ábrelo.
-3. Si Android lo pide, permite **"Instalar apps de esta fuente"** para tu navegador o gestor de archivos.
-4. Abre **Musica DJ** desde el cajón de aplicaciones. La primera vez que suene música pedirá permiso para mostrar notificaciones: acéptalo para tener los controles.
+1. En el teléfono, abre **https://github.com/nexoaiecosystem-coder/Musica/releases/tag/android-latest**.
+2. Descarga **`MusicaDJ.apk`** y ábrelo. Si Android lo pide, permite **"Instalar apps de esta fuente"**.
+3. Abre **Musica DJ** desde el cajón de aplicaciones. La primera vez que suene música pedirá permiso para notificaciones: acéptalo para tener los controles.
 
 Como app nativa:
 - **La música sigue sonando con la pantalla bloqueada** y en segundo plano (servicio de reproducción).
 - Notificación con **anterior / pausa / siguiente**, también en la pantalla de bloqueo y con los botones de auriculares Bluetooth.
-- Para cerrarla del todo, deslízala desde "recientes".
 
-**Actualizaciones:** cada cambio en el código compila un APK nuevo automáticamente (GitHub Actions → *APK Android*). Descárgalo igual que la primera vez: se instala encima y conserva tu biblioteca, carpetas y cola.
+### Se actualiza sola (no hay que reinstalar)
 
-> El APK se firma con una clave incluida en el repositorio (`android/app/musica-dj.keystore`) para que todas las versiones tengan la misma firma. Es suficiente para uso personal; si algún día se publica en Google Play, conviene generar una clave privada nueva.
+- La **interfaz** (pantallas, mezcla, biblioteca…) se publica en GitHub Pages. Al abrir la app, si hay una versión nueva, se descarga en segundo plano y se aplica al momento (o en el próximo arranque si está sonando música, con un aviso **"Actualización lista"**). Queda guardada en el teléfono y funciona sin conexión. Tu biblioteca no se toca.
+- Solo cuando cambia la **parte nativa** (Android) hace falta un APK nuevo. Entonces la app muestra **"Nueva versión de la app disponible · Actualizar"**: un toque lo descarga y abre el instalador.
+- Si una actualización de la interfaz no arrancara bien, la app vuelve sola a la versión que trae el APK.
+- En ⚙︎ Ajustes → **Versión** ves qué versión tienes y puedes **buscar actualizaciones** a mano.
+
+La misma interfaz está en **https://nexoaiecosystem-coder.github.io/Musica/** para probar cambios desde cualquier navegador.
+
+### Cómo se publica (GitHub Actions → *Publicar*)
+
+1. **Pruebas:** la app se abre en un navegador automático y se comprueba lo esencial (importar, BPM, reproducir, elegir la siguiente, mezcla automática, BPM fijo, carpetas, que todo se guarde, modo DJ). Si algo falla, no se publica nada. Se pueden correr en local con `npm run build:web && npm test`.
+2. **Web:** se publica la interfaz y el paquete de actualización (`bundle.zip`, `version.json`) en GitHub Pages.
+3. **APK:** se compila y se publica en Releases. La versión nativa está en `native-version.json`: súbela solo cuando cambie algo en `android/` (`minNativeForWeb` indica qué versión nativa necesita la interfaz).
+
+**Firma:** el APK se firma con una clave privada guardada como secreto de GitHub (`ANDROID_KEYSTORE_B64`, el archivo `.keystore` en base64; contraseña y alias: `musicadj`). La clave nunca va al repositorio. Sin ese secreto, el APK se compila pero no se publica.
 
 ### Compilar el APK a mano
 Requiere Node 22, JDK 21 y el SDK de Android:
@@ -141,6 +152,7 @@ index.html              interfaz
 css/style.css           estilos (look Pioneer, horizontal y vertical)
 js/app.js               decks, mezclador, biblioteca, reproductor, grabación
 js/native.js            integración con la app Android (servicio de reproducción, controles)
+js/updater.js           actualizaciones automáticas de la app Android
 js/automix.js           mezcla automática entre canciones (crossfade + beatmatch) y cola
 js/store.js             biblioteca guardada en el teléfono (IndexedDB): canciones, carpetas, cola
 js/library-ui.js        panel de cola y biblioteca, menús, diálogos
@@ -151,7 +163,9 @@ js/ui.js                perillas, faders y botones táctiles
 sw.js, manifest.webmanifest, icons/   PWA (instalable y sin conexión)
 android/                proyecto Android (Capacitor) + servicio de reproducción en segundo plano
 capacitor.config.json   configuración de la app nativa
-.github/workflows/      compilación automática del APK
+.github/workflows/      pruebas + publicación (GitHub Pages y APK)
+tests/smoke.mjs         prueba automática de la app en un navegador
+native-version.json     versión de la parte nativa
 ```
 
 Sin dependencias ni compilación: solo HTML, CSS y JavaScript con Web Audio API.

@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+def nativeVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../native-version.json')).native as int
+// Clave de firma: llega como secreto de GitHub (ANDROID_KEYSTORE_B64) y el flujo
+// de trabajo la deja en app/release.keystore. Sin ella se firma en modo debug.
+def releaseKeystore = file('release.keystore')
+
 android {
     namespace = "com.musicadj.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,10 +12,10 @@ android {
         applicationId "com.musicadj.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // En GitHub Actions cada compilación sube el número de versión, así el
-        // APK nuevo se instala encima del anterior sin perder la biblioteca.
-        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
-        versionName "1.0.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        // La versión nativa sale de native-version.json: solo sube cuando cambia
+        // la parte de Android (la interfaz se actualiza sola, sin APK nuevo).
+        versionCode nativeVersion
+        versionName "1.${nativeVersion}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,20 +25,18 @@ android {
     }
     // Firma fija: todas las versiones del APK llevan la misma firma, de modo que
     // las actualizaciones se instalan encima sin desinstalar (ni perder datos).
+    // La clave NO está en el repositorio (es público): ver README.
     signingConfigs {
         musica {
-            storeFile file('musica-dj.keystore')
+            storeFile releaseKeystore
             storePassword 'musicadj'
             keyAlias 'musicadj'
             keyPassword 'musicadj'
         }
     }
     buildTypes {
-        debug {
-            signingConfig signingConfigs.musica
-        }
         release {
-            signingConfig signingConfigs.musica
+            signingConfig releaseKeystore.exists() ? signingConfigs.musica : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

@@ -12,6 +12,8 @@ const ASSETS = [
   'js/store.js',
   'js/library-ui.js',
   'js/native.js',
+  'js/build-info.js',
+  'js/updater.js',
   'js/deck-processor.js',
   'manifest.webmanifest',
   'icons/icon.svg',
